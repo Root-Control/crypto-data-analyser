@@ -1,0 +1,28 @@
+# AWS Configuration
+aws_region = "us-west-2"
+
+# Environment Configuration
+environment = "production"
+app_name    = "new-tes"
+app_port    = 3000
+
+# ECS Configuration
+cpu           = 256
+memory        = 512
+desired_count = 1
+
+# Autoscaling Configuration
+min_capacity            = 1
+max_capacity            = 10
+target_cpu_utilization  = 80
+
+# Health Check Configuration
+health_check_path = "/api/health"
+
+# Tags
+tags = {
+  Environment = "production"
+  Project     = "new-tes"
+  ManagedBy   = "terraform"
+  Owner       = "devops-team"
+}

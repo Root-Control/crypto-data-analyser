@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: new-tes-app
+  labels:
+    app: new-tes-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: new-tes-app
+  template:
+    metadata:
+      labels:
+        app: new-tes-app
+    spec:
+      containers:
+        - name: new-tes-app
+          image: new-tes:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: 'production'
+            - name: PORT
+              value: '3000'
+            - name: DATABASE_URI
+              value: 'mongodb://mongo-service:27017/new-tes'
+            - name: REDIS_URL
+              value: 'redis://redis-service:6379'
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: new-tes-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '250m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: new-tes-service
+spec:
+  selector:
+    app: new-tes-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: LoadBalancer

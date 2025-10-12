@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URI=mongodb://mongo:27017/new-tes
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_EXPIRES_IN=3600s
+      - CORS_ORIGIN=*
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - app-network
+
+  mongo:
+    image: mongo:7.0
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge
