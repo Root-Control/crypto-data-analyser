@@ -5,6 +5,7 @@ export class MinuteAnalysis {
   @Prop({ required: true })
   minute: string; // HH:MM en UTC
 
+  // OHLC
   @Prop({ required: true })
   open: number;
 
@@ -17,6 +18,7 @@ export class MinuteAnalysis {
   @Prop({ required: true })
   low: number;
 
+  // Fluctuaciones
   @Prop({ required: true })
   fluct: number;
 
@@ -26,6 +28,7 @@ export class MinuteAnalysis {
   @Prop({ required: true })
   min: number;
 
+  // Secuencia
   @Prop({ required: true })
   seq: string; // HL, LH, H-, -L
 
@@ -37,6 +40,57 @@ export class MinuteAnalysis {
 
   @Prop()
   prevClose?: number;
+
+  // Volume metrics (nuevo del marketMinute engine)
+  @Prop()
+  tickVol?: number; // Volumen total
+
+  @Prop()
+  buyVol?: number; // Volumen comprador
+
+  @Prop()
+  sellVol?: number; // Volumen vendedor
+
+  @Prop()
+  delta?: number; // buyVol - sellVol
+
+  @Prop()
+  imbalance?: number; // delta normalizado [-1, 1]
+
+  @Prop()
+  vwap?: number; // Volume Weighted Average Price
+
+  @Prop()
+  tickCount?: number; // Cantidad de ticks procesados
+
+  // Flow signals
+  @Prop()
+  firstMove?: string; // 'up' | 'down'
+
+  // v8.1: Data quality counters
+  @Prop()
+  invalidTickCount?: number;
+
+  @Prop()
+  outOfWindowTickCount?: number;
+
+  // v8.1: Confidence flags (structured subdocument)
+  @Prop({
+    type: {
+      bullish: { type: Boolean, required: true },
+      bearish: { type: Boolean, required: true },
+      climax: { type: Boolean, required: true },
+      meanRevertBias: { type: String, enum: ['up', 'down'], required: false },
+    },
+    required: false,
+    _id: false,
+  })
+  flags?: {
+    bullish: boolean;
+    bearish: boolean;
+    climax: boolean;
+    meanRevertBias?: string;
+  };
 }
 
 @Schema({ timestamps: true })
@@ -49,6 +103,9 @@ export class CandleAnalyser extends Document {
 
   @Prop({ required: true, index: true })
   startTime: string; // HH:MM (UTC)
+
+  @Prop({ required: true, default: 'in-progress' })
+  status: string; // in-progress | completed
 
   @Prop({ type: [MinuteAnalysis], default: [] })
   analysis: MinuteAnalysis[];

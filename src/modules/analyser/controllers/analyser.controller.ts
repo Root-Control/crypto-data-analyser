@@ -130,7 +130,14 @@ export class AnalyserController {
     // Construir respuesta
     const response: any = {
       success: true,
-      blocksUsed: validBlocks.length,
+      blocksUsed: validBlocks.map((block) => ({
+        blockId: `${block.startDate}_${block.startTime}`,
+        startDate: block.startDate,
+        startTime: block.startTime,
+        status: block.status,
+        candlesCount: block.analysis.length,
+        analysis: block.analysis, // Todas las 15 velas del bloque
+      })),
       prediction,
     };
 

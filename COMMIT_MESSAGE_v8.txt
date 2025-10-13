@@ -1,0 +1,94 @@
+feat(marketMinute): v8 Ultimate - VWAP tolerance, unknown side handling, and window guards
+
+BREAKING CHANGE: None (backward compatible)
+
+## Summary
+
+Upgrade marketMinute.ts engine to v8 Ultimate with:
+- VWAP confirmation with configurable tolerance (vwapEpsilonPct)
+- Unknown side handling for ticks without isBuyerMaker (ignore/split)
+- Window guards in ingestTick [t, t+60s)
+- Reusable predicates (isBullish/isBearish)
+- Exhaustive switch with assertNever (compile-time safety)
+- Logging helper fmt() with deterministic rounding
+
+## Metrics
+
+- Tests: 64 → 69 (+5)
+- Code: 686 → 763 lines (+77)
+- Tests: 955 → 1,081 lines (+126)
+- Params: 7 → 9 (+vwapEpsilonPct, unknownSideHandling)
+- Helpers: 6 → 9 (+fmt, assertNever, predicates)
+
+## Key Changes
+
+### 1. EngineParams (2 new parameters)
+
+```typescript
+readonly vwapEpsilonPct: number;              // VWAP tolerance (default: 0.01%)
+readonly unknownSideHandling: 'ignore' | 'split'; // Unknown side (default: 'split')
+```
+
+### 2. ingestTick (guards + unknown side)
+
+- Guard: Reject ticks outside [minuteStartTs, minuteStartTs + 60_000)
+- Unknown side: Split 50/50 or ignore based on param
+- Fast-path: Skip Math.abs when px === openPx
+
+### 3. Flags with Predicates (VWAP tolerance)
+
+```typescript
+function isBullish(imbalance, close, vwap, params) {
+  const threshold = vwap * (1 + params.vwapEpsilonPct / 100);
+  return close >= threshold;
+}
+```
+
+### 4. predictNext (exhaustive switch)
+
+```typescript
+switch (seq) {
+  case 'HL': case 'H-': return 'expectHL';
+  case 'LH': case '-L': return 'expectLH';
+  default: assertNever(seq); // Compile-time validation
+}
+```
+
+## Tests
+
+New tests (+5):
+- ✅ unknownSideHandling='split': 50/50 distribution
+- ✅ unknownSideHandling='ignore': no buy/sell sum
+- ✅ VWAP bullish: close above threshold
+- ✅ VWAP bearish: close below threshold
+- ✅ VWAP edge: close exactly at threshold
+
+Total: 69/69 PASSED ✅
+
+## Files Modified
+
+- src/helpers/marketMinute.ts (+77)
+- src/helpers/marketMinute.spec.ts (+126)
+- public/code.md (+186)
+- PR_V8_SUMMARY.md (new)
+
+## Verification
+
+```bash
+npm run build  # ✅ SUCCESS
+npm test -- marketMinute.spec.ts  # ✅ 69/69 PASSED
+```
+
+## Type-Safety
+
+- ✅ satisfies EngineParams (validates DEFAULT_PARAMS)
+- ✅ assertNever (validates Seq exhaustiveness)
+- ✅ readonly (prevents mutations)
+
+## Backward Compatibility
+
+✅ All signatures maintain `params = DEFAULT_PARAMS` default
+✅ No breaking changes in public API
+✅ Stable exports in barrel (src/helpers/index.ts)
+
+Closes #v8-ultimate

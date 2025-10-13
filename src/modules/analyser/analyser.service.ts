@@ -1,27 +1,35 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as WebSocket from 'ws';
 import {
   CandleAnalyser,
   MinuteAnalysis,
 } from './schemas/candle-analyser.schema';
+import { predictNextFromBlocks } from '../../helpers/predictFromBlocks';
+import {
+  startMinute,
+  ingestTick,
+  closeMinute,
+  updateRollingStats,
+  initRollingStats,
+  addClimaxFlag,
+  fmt,
+  DEFAULT_PARAMS,
+  type MinuteState as EngineMinuteState,
+  type MinuteMetrics,
+  type RollingStats,
+} from '../../helpers/marketMinute';
+import { serializeMinute } from '../../helpers/serializeMinute';
 
 type Seq = 'HL' | 'LH' | 'H-' | '-L';
 
-interface MinuteState {
-  minuteStartTs: number; // epoch ms
+// Extended state para tracking de ciclos
+interface ExtendedMinuteState extends EngineMinuteState {
   minuteNumber: number; // contador global
   clockMinute: number; // 0-59
-  openPx: number;
-  highPx: number;
-  lowPx: number;
-  closePx: number;
-  tHighSec?: number; // 0..59
-  tLowSec?: number; // 0..59
-  prevClosePx?: number;
-  highSet: boolean;
-  lowSet: boolean;
+  prevClosePx?: number; // para backward compatibility
 }
 
 interface MinuteData {
@@ -55,13 +63,19 @@ export class AnalyserService implements OnModuleInit {
 
   // Estado de recolección de datos
   private minuteCounter = 0;
-  private currentMinuteState: MinuteState | null = null;
+  private currentMinuteState: ExtendedMinuteState | null = null;
   private last15Minutes: MinuteData[] = [];
   private currentCycleStartTime: string | null = null;
+
+  // v8.1: Rolling stats para climax detection
+  private rollingStats: RollingStats = initRollingStats(
+    DEFAULT_PARAMS.climaxLookback,
+  );
 
   constructor(
     @InjectModel(CandleAnalyser.name)
     private candleAnalyserModel: Model<CandleAnalyser>,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -144,24 +158,10 @@ export class AnalyserService implements OnModuleInit {
     return `$${n.toFixed(2)}`;
   }
 
+  // v8.1: Ya no necesitamos estos helpers, el motor los maneja
+  // (mantenidos para legacy code que podría referenciarlos)
   private secondsWithinMinute(ts: number, minuteStartTs: number): number {
     return Math.floor((ts - minuteStartTs) / 1000) % 60;
-  }
-
-  private computeSeq(st: MinuteState): Seq {
-    const highAboveOpen = st.highPx > st.openPx;
-    const lowBelowOpen = st.lowPx < st.openPx;
-
-    if (st.tHighSec !== undefined && st.tLowSec !== undefined) {
-      return st.tHighSec < st.tLowSec ? 'HL' : 'LH';
-    } else if (highAboveOpen && !lowBelowOpen) {
-      return 'H-';
-    } else if (lowBelowOpen && !highAboveOpen) {
-      return '-L';
-    } else {
-      // Sin movimiento significativo, convención
-      return 'H-';
-    }
   }
 
   // ===== Métodos principales =====
@@ -169,95 +169,72 @@ export class AnalyserService implements OnModuleInit {
     const openPx = parseFloat(kline.o);
     const ts = kline.t;
     const candleTime = new Date(ts);
-    const clockMinute = candleTime.getMinutes();
+    const clockMinute = candleTime.getUTCMinutes();
 
     this.minuteCounter++;
 
+    // v8.1: Usar motor para inicializar estado
+    const engineState = startMinute(openPx, ts);
+
+    // Extender con metadata de tracking
     this.currentMinuteState = {
-      minuteStartTs: ts,
+      ...engineState,
       minuteNumber: this.minuteCounter,
       clockMinute,
-      openPx,
-      highPx: openPx,
-      lowPx: openPx,
-      closePx: openPx,
       prevClosePx:
         this.last15Minutes.length > 0
           ? this.last15Minutes[this.last15Minutes.length - 1].close
           : undefined,
-      highSet: false,
-      lowSet: false,
     };
   }
 
   private processTrade(trade: any) {
     if (!this.currentMinuteState) return;
 
-    const price = parseFloat(trade.p);
-    const ts = trade.T; // transaction time
+    // v8.1: Usar motor para ingerir tick
+    const tick = {
+      px: parseFloat(trade.p),
+      vol: parseFloat(trade.q),
+      ts: trade.T,
+      isBuyerMaker: trade.m, // true = sell aggressor, false = buy aggressor
+    };
 
-    this.currentMinuteState.closePx = price;
+    // Ingest con motor (incluye guards y validaciones)
+    const updatedState = ingestTick(
+      this.currentMinuteState,
+      tick,
+      DEFAULT_PARAMS,
+    );
 
-    // Actualizar high
-    if (price > this.currentMinuteState.highPx) {
-      this.currentMinuteState.highPx = price;
-      if (
-        !this.currentMinuteState.highSet &&
-        price > this.currentMinuteState.openPx
-      ) {
-        this.currentMinuteState.tHighSec = this.secondsWithinMinute(
-          ts,
-          this.currentMinuteState.minuteStartTs,
-        );
-        this.currentMinuteState.highSet = true;
-      }
-    }
-
-    // Actualizar low
-    if (price < this.currentMinuteState.lowPx) {
-      this.currentMinuteState.lowPx = price;
-      if (
-        !this.currentMinuteState.lowSet &&
-        price < this.currentMinuteState.openPx
-      ) {
-        this.currentMinuteState.tLowSec = this.secondsWithinMinute(
-          ts,
-          this.currentMinuteState.minuteStartTs,
-        );
-        this.currentMinuteState.lowSet = true;
-      }
-    }
+    // Preservar metadata de tracking
+    this.currentMinuteState = {
+      ...updatedState,
+      minuteNumber: this.currentMinuteState.minuteNumber,
+      clockMinute: this.currentMinuteState.clockMinute,
+      prevClosePx: this.currentMinuteState.prevClosePx,
+    };
   }
 
-  private closeMinute(kline: any) {
+  private async closeMinute(kline: any) {
     if (!this.currentMinuteState) return;
 
     const st = this.currentMinuteState;
-    const open = st.openPx;
-    const high = st.highPx;
-    const low = st.lowPx;
-    const close = st.closePx;
-
-    const fluct = ((close - open) / open) * 100;
-    const maxPct = Math.max(0, ((high - open) / open) * 100);
-    const minPct = Math.min(0, ((low - open) / open) * 100);
-
-    const seq = this.computeSeq(st);
     const clockMinute = st.clockMinute;
+
+    // v8.1: Cerrar minuto con motor (calcula 25 métricas)
+    let metrics: MinuteMetrics = closeMinute(st, DEFAULT_PARAMS);
+
+    // v8.1: Actualizar rolling stats
+    this.rollingStats = updateRollingStats(this.rollingStats, metrics);
+
+    // v8.1: Añadir flag de climax
+    metrics = addClimaxFlag(metrics, this.rollingStats, DEFAULT_PARAMS);
+
+    // Log mejorado con nuevas métricas
     const is15MinMark = clockMinute % 15 === 0;
     const mark = is15MinMark ? '⏰' : '  ';
+    const trend = metrics.fluct >= 0 ? '🟢' : metrics.fluct === 0 ? '🟡' : '🔴';
 
-    // Si es marca de 15 minutos, establecer nuevo ciclo
-    if (is15MinMark) {
-      const candleTime = new Date(st.minuteStartTs);
-      const hours = candleTime.getUTCHours().toString().padStart(2, '0');
-      const minutes = clockMinute.toString().padStart(2, '0');
-      this.currentCycleStartTime = `${hours}:${minutes}`;
-    }
-
-    const trend = fluct >= 0 ? '🟢' : fluct === 0 ? '🟡' : '🔴';
-
-    // Formatear timestamp (UTC)
     const candleTime = new Date(st.minuteStartTs);
     const months = [
       'Jan',
@@ -279,21 +256,30 @@ export class AnalyserService implements OnModuleInit {
     const minutes = clockMinute.toString().padStart(2, '0');
     const timeStr = `${month} ${day} ${hours}:${minutes}`;
 
-    // Construir log
+    // Log básico (legacy compatible)
     let logLine = `${mark} ${trend} ${timeStr} | `;
-    logLine += `Open: ${this.usd(open)} → Close: ${this.usd(close)} | `;
-    logLine += `Fluct: ${this.pct(fluct)} | `;
-    logLine += `Max: ${this.pct(maxPct)} | `;
-    logLine += `Min: ${this.pct(minPct)} | `;
-    logLine += `Seq: ${seq}`;
+    logLine += `Open: ${this.usd(metrics.open)} → Close: ${this.usd(metrics.close)} | `;
+    logLine += `Fluct: ${this.pct(metrics.fluct)} | `;
+    logLine += `Max: ${this.pct(metrics.maxPct)} | `;
+    logLine += `Min: ${this.pct(metrics.minPct)} | `;
+    logLine += `Seq: ${metrics.seq}`;
+
+    // v8.1: Log extendido (volumen + flags)
+    logLine += ` | Vol: ${metrics.tickVol.toFixed(0)}`;
+    logLine += ` | Imb: ${fmt(metrics.imbalance)}`;
+    if (metrics.vwap) logLine += ` | VWAP: ${this.usd(metrics.vwap)}`;
+    logLine += ` | Ticks: ${metrics.tickCount}`;
+
+    // Flags
+    const flagsStr = [];
+    if (metrics.flags.bullish) flagsStr.push('BULL');
+    if (metrics.flags.bearish) flagsStr.push('BEAR');
+    if (metrics.flags.climax) flagsStr.push('CLIMAX');
+    if (flagsStr.length > 0) logLine += ` | ${flagsStr.join('+')}`;
 
     if (this.PRINT_TIMES) {
-      if (st.tHighSec !== undefined) {
-        logLine += ` | tHigh: ${st.tHighSec}s`;
-      }
-      if (st.tLowSec !== undefined) {
-        logLine += ` | tLow: ${st.tLowSec}s`;
-      }
+      if (st.tHighSec !== undefined) logLine += ` | tHigh: ${st.tHighSec}s`;
+      if (st.tLowSec !== undefined) logLine += ` | tLow: ${st.tLowSec}s`;
     }
 
     if (this.PRINT_PREV_CLOSE && st.prevClosePx !== undefined) {
@@ -302,32 +288,17 @@ export class AnalyserService implements OnModuleInit {
 
     this.logger.log(logLine);
 
-    // Guardar en BD si tenemos ciclo activo
-    if (this.currentCycleStartTime) {
-      this.saveMinuteToDB(
-        st,
-        open,
-        high,
-        low,
-        close,
-        fluct,
-        maxPct,
-        minPct,
-        seq,
-      );
-    }
-
-    // Guardar para reportes
+    // Guardar para reportes (legacy)
     const minuteData: MinuteData = {
       minute: st.minuteNumber,
       clockMinute,
-      open,
-      high,
-      low,
-      close,
-      fluctuation: fluct,
-      maxFluctuation: maxPct,
-      minFluctuation: minPct,
+      open: metrics.open,
+      high: metrics.high,
+      low: metrics.low,
+      close: metrics.close,
+      fluctuation: metrics.fluct,
+      maxFluctuation: metrics.maxPct,
+      minFluctuation: metrics.minPct,
       timestamp: new Date(st.minuteStartTs).toISOString(),
     };
 
@@ -336,9 +307,22 @@ export class AnalyserService implements OnModuleInit {
       this.last15Minutes.shift();
     }
 
-    // Generar reporte cada 15 minutos (cuando completamos un ciclo)
-    if (is15MinMark && this.last15Minutes.length === 15) {
-      this.generateAndSaveReport();
+    // ANTES de guardar el minuto, verificar si es inicio de nuevo ciclo
+    if (is15MinMark) {
+      // Si ya tenemos un ciclo anterior con 15 minutos, completarlo
+      if (this.currentCycleStartTime && this.last15Minutes.length === 15) {
+        await this.generateAndSaveReport();
+      }
+
+      // Establecer nuevo ciclo
+      const hours = candleTime.getUTCHours().toString().padStart(2, '0');
+      const minutes = clockMinute.toString().padStart(2, '0');
+      this.currentCycleStartTime = `${hours}:${minutes}`;
+    }
+
+    // v8.1: Guardar en BD con motor serializado
+    if (this.currentCycleStartTime) {
+      await this.saveMinuteToDB(metrics, st);
     }
 
     // Resetear estado
@@ -346,37 +330,19 @@ export class AnalyserService implements OnModuleInit {
   }
 
   private async saveMinuteToDB(
-    st: MinuteState,
-    open: number,
-    high: number,
-    low: number,
-    close: number,
-    fluct: number,
-    maxPct: number,
-    minPct: number,
-    seq: Seq,
+    metrics: MinuteMetrics,
+    st: ExtendedMinuteState,
   ) {
     try {
       const candleTime = new Date(st.minuteStartTs);
       const startDate = candleTime.toISOString().split('T')[0]; // YYYY-MM-DD
-      const hours = candleTime.getUTCHours().toString().padStart(2, '0');
-      const minutes = st.clockMinute.toString().padStart(2, '0');
-      const minuteTime = `${hours}:${minutes}`;
 
-      const minuteAnalysis: MinuteAnalysis = {
-        minute: minuteTime,
-        open,
-        close,
-        high,
-        low,
-        fluct,
-        max: maxPct,
-        min: minPct,
-        seq,
-        tHigh: st.tHighSec,
-        tLow: st.tLowSec,
-        prevClose: st.prevClosePx,
-      };
+      // v8.1: Serializar métricas con todas las fields nuevas
+      const minuteAnalysis = serializeMinute(
+        metrics,
+        st, // para tHighSec/tLowSec
+        st.prevClosePx, // para prevClose
+      );
 
       // Buscar o crear documento
       await this.candleAnalyserModel.updateOne(
@@ -390,17 +356,18 @@ export class AnalyserService implements OnModuleInit {
             pair: this.PAIR,
             startDate,
             startTime: this.currentCycleStartTime,
+            status: 'in-progress',
           },
           $push: { analysis: minuteAnalysis },
         },
         { upsert: true },
       );
     } catch (error) {
-      this.logger.error(`Error guardando en BD: ${error.message}`);
+      this.logger.error(`❌ Error guardando en BD: ${error.message}`);
     }
   }
 
-  private generateAndSaveReport() {
+  private async generateAndSaveReport() {
     const firstMin = this.last15Minutes[0].clockMinute;
     const lastMin =
       this.last15Minutes[this.last15Minutes.length - 1].clockMinute;
@@ -422,6 +389,11 @@ export class AnalyserService implements OnModuleInit {
       else if (data.fluctuation < 0) downsCount++;
     });
 
+    // Marcar el bloque como completado si tiene 15 minutos
+    if (this.last15Minutes.length === 15 && this.currentCycleStartTime) {
+      await this.markBlockAsCompleted();
+    }
+
     this.logger.log('');
     this.logger.log('📊 ========================================');
     this.logger.log(
@@ -436,5 +408,180 @@ export class AnalyserService implements OnModuleInit {
     );
     this.logger.log('📊 ========================================');
     this.logger.log('');
+  }
+
+  private async markBlockAsCompleted() {
+    try {
+      const lastMinuteTime = new Date(
+        this.last15Minutes[this.last15Minutes.length - 1].timestamp,
+      );
+      const startDate = lastMinuteTime.toISOString().split('T')[0];
+
+      await this.candleAnalyserModel.updateOne(
+        {
+          pair: this.PAIR,
+          startDate,
+          startTime: this.currentCycleStartTime,
+        },
+        {
+          $set: { status: 'completed' },
+        },
+      );
+
+      this.logger.log(
+        `✅ Bloque marcado como COMPLETED: ${startDate} ${this.currentCycleStartTime}`,
+      );
+
+      // Inmediatamente buscar 3 bloques para predicción
+      await this.triggerAutoPrediction(startDate, this.currentCycleStartTime!);
+    } catch (error) {
+      this.logger.error(
+        `Error marcando bloque como completado: ${error.message}`,
+      );
+    }
+  }
+
+  private async triggerAutoPrediction(
+    completedDate: string,
+    completedTime: string,
+  ) {
+    try {
+      this.logger.log('');
+      this.logger.log('🔮 ==========================================');
+      this.logger.log('🔮 AUTO-PREDICCIÓN ACTIVADA');
+      this.logger.log('🔮 ==========================================');
+
+      // Parsear tiempo completado
+      const [hours, minutes] = completedTime.split(':').map(Number);
+      const completedDateTime = new Date(completedDate);
+      completedDateTime.setUTCHours(hours, minutes, 0, 0);
+
+      // Calcular los 2 bloques anteriores (este ya está completado)
+      const block1Time = new Date(completedDateTime.getTime() - 15 * 60 * 1000);
+      const block2Time = new Date(completedDateTime.getTime() - 30 * 60 * 1000);
+
+      const formatTime = (date: Date) => {
+        const h = date.getUTCHours().toString().padStart(2, '0');
+        const m = date.getUTCMinutes().toString().padStart(2, '0');
+        return `${h}:${m}`;
+      };
+
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+      // Buscar los 3 bloques (orden: más viejo primero)
+      const blockQueries = [
+        {
+          startDate: formatDate(block2Time),
+          startTime: formatTime(block2Time),
+        },
+        {
+          startDate: formatDate(block1Time),
+          startTime: formatTime(block1Time),
+        },
+        { startDate: completedDate, startTime: completedTime },
+      ];
+
+      this.logger.log('🔍 Buscando 3 bloques (completados + 15 velas c/u):');
+
+      const blocks = await Promise.all(
+        blockQueries.map((query) =>
+          this.candleAnalyserModel
+            .findOne({ pair: this.PAIR, ...query, status: 'completed' })
+            .exec(),
+        ),
+      );
+
+      // Validar existencia y contenido de cada bloque
+      let allValid = true;
+
+      blockQueries.forEach((q, i) => {
+        const block = blocks[i];
+        const exists = block !== null;
+        const hasCorrectLength = block?.analysis?.length === 15;
+
+        if (exists && hasCorrectLength) {
+          this.logger.log(
+            `   ✅ ${i + 1}. ${q.startDate} ${q.startTime} (${block.analysis.length} velas)`,
+          );
+        } else if (exists && !hasCorrectLength) {
+          this.logger.error(
+            `   ❌ ${i + 1}. ${q.startDate} ${q.startTime} - Tiene ${block.analysis.length}/15 velas`,
+          );
+          allValid = false;
+        } else {
+          this.logger.error(
+            `   ❌ ${i + 1}. ${q.startDate} ${q.startTime} - NO ENCONTRADO`,
+          );
+          allValid = false;
+        }
+      });
+
+      if (!allValid) {
+        this.logger.error('');
+        this.logger.error('🔴 ==========================================');
+        this.logger.error('🔴 PREDICCIÓN CANCELADA: Bloques incompletos');
+        this.logger.error('🔴 ==========================================');
+        this.logger.error('');
+        return;
+      }
+
+      const validBlocks = blocks.filter((b) => b !== null) as CandleAnalyser[];
+
+      this.logger.log('');
+      this.logger.log('✅ 3 bloques válidos. Generando predicción...');
+
+      // Generar predicción
+      const prediction = predictNextFromBlocks(validBlocks);
+
+      if (!prediction.ok) {
+        this.logger.error('');
+        this.logger.error('🔴 ==========================================');
+        this.logger.error('🔴 ERROR EN PREDICCIÓN');
+        this.logger.error(`🔴 ${prediction.reason}`);
+        this.logger.error('🔴 ==========================================');
+        this.logger.error('');
+        return;
+      }
+
+      // Calcular ventana del siguiente bloque
+      const nextBlockTime = new Date(
+        completedDateTime.getTime() + 15 * 60 * 1000,
+      );
+      const blockWindow = {
+        startDate: formatDate(nextBlockTime),
+        startTime: formatTime(nextBlockTime),
+        startTs: nextBlockTime.getTime(),
+        endTs: nextBlockTime.getTime() + 15 * 60 * 1000,
+      };
+
+      this.logger.log('');
+      this.logger.log('🟢 ==========================================');
+      this.logger.log('🟢 PREDICCIÓN GENERADA EXITOSAMENTE');
+      this.logger.log('🟢 ==========================================');
+      this.logger.log(`   Bias: ${prediction.bias}`);
+      this.logger.log(`   Setups: ${prediction.entries?.length || 0}`);
+      this.logger.log(
+        `   Para bloque: ${blockWindow.startDate} ${blockWindow.startTime}`,
+      );
+      this.logger.log(`   Key Level: $${prediction.levels?.keyLevel}`);
+      this.logger.log(
+        `   15m Range: $${prediction.levels?.last15mLow} - $${prediction.levels?.last15mHigh}`,
+      );
+      this.logger.log('🟢 ==========================================');
+
+      // Emitir evento para que TradingOrchestrator lo active
+      this.eventEmitter.emit('prediction.ready', {
+        prediction,
+        blockWindow,
+        triggeredBy: 'auto',
+      });
+
+      this.logger.log(
+        '📤 Evento enviado: prediction.ready → TradingOrchestrator',
+      );
+      this.logger.log('');
+    } catch (error) {
+      this.logger.error(`Error en auto-predicción: ${error.message}`);
+    }
   }
 }
