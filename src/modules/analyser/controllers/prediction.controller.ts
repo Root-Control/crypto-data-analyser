@@ -208,7 +208,6 @@ export class PredictionController {
     for (const block of blocks) {
       for (const analysis of block.analysis) {
         // Convertir minute string a timestamp para filtrar
-        const [hours, minutes] = analysis.minute.split(':').map(Number);
         const candleTime = new Date(
           block.startDate + 'T' + analysis.minute + ':00Z',
         );
