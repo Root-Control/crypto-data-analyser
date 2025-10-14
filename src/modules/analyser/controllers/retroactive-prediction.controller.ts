@@ -736,10 +736,22 @@ export class RetroactivePredictionController {
   // ============================================================================
 
   private async getAllBlocksSorted(pair: string): Promise<CandleAnalyser[]> {
-    return await this.candleAnalyserModel
-      .find({ pair })
-      .sort({ startDate: 1, startTime: 1 }) // Ordenar por fecha/hora ascendente
-      .exec();
+    const query = { pair };
+
+    // Query para datos anteriores al 13 de octubre 11:30 AM
+    /*     const query = {
+      pair,
+      $or: [
+        { startDate: { $lt: '2025-10-13' } },
+        {
+          startDate: '2025-10-13',
+          startTime: { $lt: '11:30' },
+        },
+      ],
+    }; */
+    const sort = { startDate: 1 as const, startTime: 1 as const };
+
+    return await this.candleAnalyserModel.find(query).sort(sort).exec();
   }
 
   private validateAndCleanBlocks(
