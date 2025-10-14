@@ -22,6 +22,7 @@ import {
   type RollingStats,
 } from '../../helpers/marketMinute';
 import { serializeMinute } from '../../helpers/serializeMinute';
+import { BookService } from '../book/book.service';
 
 type Seq = 'HL' | 'LH' | 'H-' | '-L';
 
@@ -76,6 +77,7 @@ export class AnalyserService implements OnModuleInit {
     @InjectModel(CandleAnalyser.name)
     private candleAnalyserModel: Model<CandleAnalyser>,
     private eventEmitter: EventEmitter2,
+    private bookService: BookService,
   ) {}
 
   onModuleInit() {
@@ -344,6 +346,15 @@ export class AnalyserService implements OnModuleInit {
         st.prevClosePx, // para prevClose
       );
 
+      // 📖 Obtener snapshot del order book desde Redis
+      const bookSnapshot = await this.bookService.getLatestSnapshot();
+
+      // Agregar book snapshot al análisis del minuto
+      const analysisWithBook = {
+        ...minuteAnalysis,
+        book: bookSnapshot || null, // null si no hay snapshot disponible
+      };
+
       // Buscar o crear documento
       await this.candleAnalyserModel.updateOne(
         {
@@ -358,10 +369,17 @@ export class AnalyserService implements OnModuleInit {
             startTime: this.currentCycleStartTime,
             status: 'in-progress',
           },
-          $push: { analysis: minuteAnalysis },
+          $push: { analysis: analysisWithBook },
         },
         { upsert: true },
       );
+
+      // Log cuando se guarda con book
+      if (bookSnapshot) {
+        this.logger.debug(
+          `📖 Minuto guardado con book | Mid: $${fmt(bookSnapshot.midPrice)} | Imb: ${fmt(bookSnapshot.imbalance * 100)}%`,
+        );
+      }
     } catch (error) {
       this.logger.error(`❌ Error guardando en BD: ${error.message}`);
     }

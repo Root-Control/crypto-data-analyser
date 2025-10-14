@@ -46,3 +46,14 @@ export {
 
 // ===== SERIALIZATION =====
 export { serializeMinute } from './serializeMinute';
+
+// ===== PREDICTION ENGINE =====
+export {
+  predictNextCandle,
+  formatPrediction,
+  getPredictionColor,
+  type MomentumScore,
+  type BookPressure,
+  type PredictionScore,
+  type HistoricalCandle,
+} from './predictionEngine';

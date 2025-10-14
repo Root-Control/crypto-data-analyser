@@ -466,3 +466,7 @@ db.candleanalysers.findOne({}, { sort: { createdAt: -1 } });
 
 **El motor v8.1 está VIVO y procesando el mercado en tiempo real con análisis de nivel profesional** 💎🤖💰
 
+
+
+
+

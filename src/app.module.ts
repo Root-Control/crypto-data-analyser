@@ -5,6 +5,7 @@ import { RedisModule } from './third-party-services/redis/redis.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { AnalyserModule } from './modules/analyser/analyser.module';
 import { TradingOrchestratorModule } from './modules/trading-orchestrator/trading-orchestrator.module';
+import { BookModule } from './modules/book/book.module';
 import { AppController } from './app.controller';
 import configuration from './config/configuration';
 
@@ -20,6 +21,7 @@ import configuration from './config/configuration';
     RedisModule,
     AnalyserModule,
     TradingOrchestratorModule,
+    BookModule, // 📖 Módulo aislado para Order Book
   ],
   providers: [],
   controllers: [AppController],

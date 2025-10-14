@@ -91,6 +91,22 @@ export class MinuteAnalysis {
     climax: boolean;
     meanRevertBias?: string;
   };
+
+  // 📖 Order Book snapshot (desde Redis al cierre del minuto)
+  @Prop({ type: Object, required: false })
+  book?: {
+    symbol: string;
+    timestamp: number;
+    lastUpdateId: number;
+    bids: Array<{ price: string; qty: string }>;
+    asks: Array<{ price: string; qty: string }>;
+    spread?: number;
+    spreadPct?: number;
+    midPrice?: number;
+    totalBidQty?: number;
+    totalAskQty?: number;
+    imbalance?: number;
+  };
 }
 
 @Schema({ timestamps: true })
