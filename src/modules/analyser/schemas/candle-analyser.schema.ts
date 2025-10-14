@@ -41,40 +41,40 @@ export class MinuteAnalysis {
   @Prop()
   prevClose?: number;
 
-  // Volume metrics (nuevo del marketMinute engine)
+  // Volume metrics
   @Prop()
-  tickVol?: number; // Volumen total
+  tickVol?: number;
 
   @Prop()
-  buyVol?: number; // Volumen comprador
+  buyVol?: number;
 
   @Prop()
-  sellVol?: number; // Volumen vendedor
+  sellVol?: number;
 
   @Prop()
-  delta?: number; // buyVol - sellVol
+  delta?: number;
 
   @Prop()
-  imbalance?: number; // delta normalizado [-1, 1]
+  imbalance?: number;
 
   @Prop()
-  vwap?: number; // Volume Weighted Average Price
+  vwap?: number;
 
   @Prop()
-  tickCount?: number; // Cantidad de ticks procesados
+  tickCount?: number;
 
   // Flow signals
   @Prop()
-  firstMove?: string; // 'up' | 'down'
+  firstMove?: string;
 
-  // v8.1: Data quality counters
+  // Data quality counters
   @Prop()
   invalidTickCount?: number;
 
   @Prop()
   outOfWindowTickCount?: number;
 
-  // v8.1: Confidence flags (structured subdocument)
+  // Confidence flags
   @Prop({
     type: {
       bullish: { type: Boolean, required: true },
@@ -92,7 +92,7 @@ export class MinuteAnalysis {
     meanRevertBias?: string;
   };
 
-  // 📖 Order Book snapshot (desde Redis al cierre del minuto)
+  // Order Book snapshot
   @Prop({ type: Object, required: false })
   book?: {
     symbol: string;

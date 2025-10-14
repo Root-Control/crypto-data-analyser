@@ -2,7 +2,6 @@ import { Controller, Get, Query, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CandleAnalyser } from '../schemas/candle-analyser.schema';
-import { BookService } from '../../book/book.service';
 import {
   formatPrediction,
   getPredictionColor,
@@ -17,7 +16,6 @@ export class PredictionController {
   constructor(
     @InjectModel(CandleAnalyser.name)
     private candleAnalyserModel: Model<CandleAnalyser>,
-    private bookService: BookService,
   ) {}
 
   @Get('next-candle')
@@ -139,7 +137,7 @@ export class PredictionController {
     try {
       // Predicción en tiempo real con datos más recientes
       const historicalCandles = await this.getHistoricalCandles(pair, 10); // Últimos 10 minutos
-      const currentBook = await this.bookService.getLatestSnapshot();
+      const currentBook = null; // Book service eliminado
 
       if (historicalCandles.length < 3) {
         return {

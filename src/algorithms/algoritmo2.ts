@@ -1,4 +1,4 @@
-import { BookSnapshot } from '../modules/book/types/book.types';
+import { BookSnapshot } from '../types/book.types';
 import {
   type HistoricalCandle,
   type PredictionScore,

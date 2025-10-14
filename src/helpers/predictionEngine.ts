@@ -1,5 +1,5 @@
 import { MinuteMetrics, MinuteState } from './marketMinute';
-import { BookSnapshot } from '../modules/book/types/book.types';
+import { BookSnapshot } from '../types/book.types';
 
 // ============================================================================
 // TIPOS Y INTERFACES

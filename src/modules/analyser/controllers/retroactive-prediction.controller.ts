@@ -2,7 +2,6 @@ import { Controller, Get, Query, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CandleAnalyser } from '../schemas/candle-analyser.schema';
-import { BookService } from '../../book/book.service';
 import {
   formatPrediction,
   getPredictionColor,
@@ -68,7 +67,6 @@ export class RetroactivePredictionController {
   constructor(
     @InjectModel(CandleAnalyser.name)
     private candleAnalyserModel: Model<CandleAnalyser>,
-    private bookService: BookService,
   ) {}
 
   @Get('debug-gaps')
@@ -259,6 +257,11 @@ export class RetroactivePredictionController {
         a3Correct = 0,
         a3PnL = 0,
         a3PnLPct = 0;
+
+      // Arrays para almacenar predicciones de cada algoritmo
+      const a1Predictions: any[] = [];
+      const a2Predictions: any[] = [];
+      const a3Predictions: any[] = [];
       for (let i = 0; i < predictions.length; i++) {
         const prediction = predictions[i];
         const currentBlock = sanitizedBlocks[i];
@@ -268,31 +271,49 @@ export class RetroactivePredictionController {
 
         let resultEvaluation: ResultEvaluation = { exists: false };
 
-        // Solo evaluar si hay predicción y no es SIDEWAYS
-        if (
-          prediction.predictionForNextMinute &&
-          prediction.predictionForNextMinute.direction !== 'SIDEWAYS' &&
-          nextBlock
-        ) {
-          // Llamar a getResults con la predicción y el bloque siguiente
-          resultEvaluation = getResults(
-            prediction.predictionForNextMinute,
-            nextBlock,
-          );
-
-          this.logger.debug(
-            `📊 Evaluando resultado ${i}: ${prediction.predictionForNextMinute.direction} → ${resultEvaluation.exists ? 'EXISTS' : 'NO_DATA'}`,
-          );
-
-          // Contabilizar para algoritmo3
-          a3Evaluated++;
+        // Agregar TODAS las predicciones de algoritmo3 (incluyendo SIDEWAYS)
+        if (prediction.predictionForNextMinute) {
+          // Solo evaluar si hay predicción y no es SIDEWAYS
           if (
-            resultEvaluation.actualDirection ===
-            prediction.predictionForNextMinute.direction
-          )
-            a3Correct++;
-          a3PnL += resultEvaluation.pnl || 0;
-          a3PnLPct += resultEvaluation.pnlPercent || 0;
+            prediction.predictionForNextMinute.direction !== 'SIDEWAYS' &&
+            nextBlock
+          ) {
+            // Llamar a getResults con la predicción y el bloque siguiente
+            resultEvaluation = getResults(
+              prediction.predictionForNextMinute,
+              nextBlock,
+            );
+
+            this.logger.debug(
+              `📊 Evaluando resultado ${i}: ${prediction.predictionForNextMinute.direction} → ${resultEvaluation.exists ? 'EXISTS' : 'NO_DATA'}`,
+            );
+
+            // Contabilizar para algoritmo3
+            a3Evaluated++;
+            if (
+              resultEvaluation.actualDirection ===
+              prediction.predictionForNextMinute.direction
+            )
+              a3Correct++;
+            a3PnL += resultEvaluation.pnl || 0;
+            a3PnLPct += resultEvaluation.pnlPercent || 0;
+          }
+
+          a3Predictions.push({
+            blockId: prediction.bloqueId,
+            fecha: prediction.fecha,
+            hora: prediction.hora,
+            direction: prediction.predictionForNextMinute.direction,
+            confidence: prediction.predictionForNextMinute.confidence,
+            expectedMove: prediction.predictionForNextMinute.expectedMove,
+            riskLevel: prediction.predictionForNextMinute.riskLevel,
+            analysis: prediction.predictionForNextMinute.analysis,
+            trading: prediction.predictionForNextMinute.trading,
+            targetBlock: prediction.predictionForNextMinute.targetBlock,
+            nextMinuteTimePrediction:
+              prediction.predictionForNextMinute.nextMinuteTimePrediction,
+            result: resultEvaluation.exists ? resultEvaluation : null,
+          });
         }
 
         // Evaluar algoritmo1 y algoritmo2 en paralelo (solo resumen)
@@ -305,8 +326,12 @@ export class RetroactivePredictionController {
             null;
 
           const p1 = algoritmo1(histCandlesA as any, currentBookA as any, 3);
+
+          let trade1 = null;
+          let result1 = null;
+
           if (p1 && p1.direction !== 'SIDEWAYS') {
-            const trade1 = this.calculateTradingSetup(
+            trade1 = this.calculateTradingSetup(
               currentBlock,
               p1 as any,
               capitalNum,
@@ -316,18 +341,33 @@ export class RetroactivePredictionController {
               direction: p1.direction,
               trading: trade1,
             } as any;
-            const e1 = getResults(p1WithTrading as any, nextBlock as any);
-            if (e1.exists) {
+            result1 = getResults(p1WithTrading as any, nextBlock as any);
+            if (result1.exists) {
               a1Evaluated++;
-              if (e1.actualDirection === p1.direction) a1Correct++;
-              a1PnL += e1.pnl || 0;
-              a1PnLPct += e1.pnlPercent || 0;
+              if (result1.actualDirection === p1.direction) a1Correct++;
+              a1PnL += result1.pnl || 0;
+              a1PnLPct += result1.pnlPercent || 0;
             }
           }
 
+          a1Predictions.push({
+            blockId: `${currentBlock.startDate}_${currentBlock.startTime}`,
+            direction: p1.direction,
+            confidence: p1.confidence,
+            expectedMove: p1.expectedMove,
+            riskLevel: p1.riskLevel,
+            analysis: p1.breakdown,
+            trading: trade1,
+            result: result1,
+          });
+
           const p2 = algoritmo2(histCandlesA as any, currentBookA as any, 3);
+
+          let trade2 = null;
+          let result2 = null;
+
           if (p2 && p2.direction !== 'SIDEWAYS') {
-            const trade2 = this.calculateTradingSetup(
+            trade2 = this.calculateTradingSetup(
               currentBlock,
               p2 as any,
               capitalNum,
@@ -337,14 +377,25 @@ export class RetroactivePredictionController {
               direction: p2.direction,
               trading: trade2,
             } as any;
-            const e2 = getResults(p2WithTrading as any, nextBlock as any);
-            if (e2.exists) {
+            result2 = getResults(p2WithTrading as any, nextBlock as any);
+            if (result2.exists) {
               a2Evaluated++;
-              if (e2.actualDirection === p2.direction) a2Correct++;
-              a2PnL += e2.pnl || 0;
-              a2PnLPct += e2.pnlPercent || 0;
+              if (result2.actualDirection === p2.direction) a2Correct++;
+              a2PnL += result2.pnl || 0;
+              a2PnLPct += result2.pnlPercent || 0;
             }
           }
+
+          a2Predictions.push({
+            blockId: `${currentBlock.startDate}_${currentBlock.startTime}`,
+            direction: p2.direction,
+            confidence: p2.confidence,
+            expectedMove: p2.expectedMove,
+            riskLevel: p2.riskLevel,
+            analysis: p2.breakdown,
+            trading: trade2,
+            result: result2,
+          });
         }
 
         // Solo algoritmo3
@@ -438,6 +489,7 @@ export class RetroactivePredictionController {
                   : 0,
               totalPnL: Math.round(a1PnL * 100) / 100,
               totalPnLPercent: Math.round(a1PnLPct * 100) / 100,
+              predictions: a1Predictions,
             },
             algoritmo2: {
               resultsEvaluated: a2Evaluated,
@@ -448,6 +500,7 @@ export class RetroactivePredictionController {
                   : 0,
               totalPnL: Math.round(a2PnL * 100) / 100,
               totalPnLPercent: Math.round(a2PnLPct * 100) / 100,
+              predictions: a2Predictions,
             },
             algoritmo3: {
               resultsEvaluated: a3Evaluated,
@@ -458,10 +511,10 @@ export class RetroactivePredictionController {
                   : 0,
               totalPnL: Math.round(a3PnL * 100) / 100,
               totalPnLPercent: Math.round(a3PnLPct * 100) / 100,
+              predictions: a3Predictions,
             },
           },
         },
-        results: results,
       };
 
       // Ocultar resultados si showResults indica falso
@@ -1329,19 +1382,24 @@ export class RetroactivePredictionController {
       expectedMove: Math.round(prediction.expectedMove * 10000) / 10000,
       riskLevel: prediction.riskLevel,
 
-      // Trading setup
-      trading: {
-        entryPrice: Math.round(entryPrice * 100) / 100,
-        takeProfitPrice:
-          takeProfitPrice > 0 ? Math.round(takeProfitPrice * 100) / 100 : 0,
-        stopLossPrice:
-          stopLossPrice > 0 ? Math.round(stopLossPrice * 100) / 100 : 0,
-        positionSize: Math.round(positionSize * 100) / 100,
-        takeProfitPercent: Math.round(takeProfitPercent * 10000) / 100,
-        stopLossPercent: Math.round(stopLossPercent * 10000) / 100,
-        capital,
-        leverage,
-      },
+      // Trading setup (solo para UP/DOWN, null para SIDEWAYS)
+      trading:
+        prediction.direction !== 'SIDEWAYS'
+          ? {
+              entryPrice: Math.round(entryPrice * 100) / 100,
+              takeProfitPrice:
+                takeProfitPrice > 0
+                  ? Math.round(takeProfitPrice * 100) / 100
+                  : 0,
+              stopLossPrice:
+                stopLossPrice > 0 ? Math.round(stopLossPrice * 100) / 100 : 0,
+              positionSize: Math.round(positionSize * 100) / 100,
+              takeProfitPercent: Math.round(takeProfitPercent * 10000) / 100,
+              stopLossPercent: Math.round(stopLossPercent * 10000) / 100,
+              capital,
+              leverage,
+            }
+          : null,
 
       // Análisis detallado
       analysis: {

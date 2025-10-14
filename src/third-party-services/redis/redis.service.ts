@@ -62,4 +62,41 @@ export class RedisService {
   async getClient(): Promise<Redis> {
     return this.redis;
   }
+
+  async subscribe(
+    topic: string,
+    callback: (message: string) => void,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Subscribing to topic: ${topic}`);
+      await this.redis.subscribe(topic);
+
+      this.redis.on('message', (channel, message) => {
+        if (channel === topic) {
+          callback(message);
+        }
+      });
+    } catch (error) {
+      this.logger.error(`Error subscribing to topic ${topic}:`, error);
+      throw error;
+    }
+  }
+
+  async publish(topic: string, message: string): Promise<number> {
+    try {
+      return await this.redis.publish(topic, message);
+    } catch (error) {
+      this.logger.error(`Error publishing to topic ${topic}:`, error);
+      throw error;
+    }
+  }
+
+  async unsubscribe(topic: string): Promise<void> {
+    try {
+      await this.redis.unsubscribe(topic);
+    } catch (error) {
+      this.logger.error(`Error unsubscribing from topic ${topic}:`, error);
+      throw error;
+    }
+  }
 }
