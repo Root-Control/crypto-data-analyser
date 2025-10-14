@@ -4,11 +4,11 @@ import { Model } from 'mongoose';
 import { CandleAnalyser } from '../schemas/candle-analyser.schema';
 import { BookService } from '../../book/book.service';
 import {
-  predictNextCandle,
   formatPrediction,
   getPredictionColor,
   type HistoricalCandle,
 } from '../../../helpers/predictionEngine';
+import { algoritmo3 } from '../../../algorithms/algoritmo3';
 
 @Controller('prediction')
 export class PredictionController {
@@ -48,17 +48,12 @@ export class PredictionController {
         };
       }
 
-      // 2. Obtener order book actual
-      const currentBook = await this.bookService.getLatestSnapshot();
-
-      if (!currentBook) {
-        this.logger.warn(
-          '⚠️ No hay order book disponible, usando solo momentum histórico',
-        );
-      }
+      // 2. Obtener order book del ÚLTIMO minuto del set histórico (no snapshot en vivo)
+      const currentBook =
+        historicalCandles[historicalCandles.length - 1]?.book || null;
 
       // 3. Ejecutar predicción
-      const prediction = predictNextCandle(historicalCandles, currentBook, 3);
+      const prediction = algoritmo3(historicalCandles, currentBook, 3);
 
       // 4. Preparar respuesta
       const response = {
@@ -154,7 +149,7 @@ export class PredictionController {
         };
       }
 
-      const prediction = predictNextCandle(historicalCandles, currentBook, 3);
+      const prediction = algoritmo3(historicalCandles, currentBook, 3);
 
       return {
         success: true,

@@ -236,7 +236,7 @@ function calculatePriceMomentum(candles: HistoricalCandle[]): number {
   const momentum = (lastPrice - firstPrice) / firstPrice;
 
   // Normalizar a [-1, 1] con saturación (original)
-  return Math.max(-1, Math.min(1, momentum * 100)); // *100 para amplificar señales pequeñas
+  return Math.max(-1, Math.min(1, momentum * 150)); // *150 para detectar movimientos grandes (PnL)
 }
 
 function calculateVolumeMomentum(candles: HistoricalCandle[]): number {
@@ -281,11 +281,13 @@ function calculateImbalanceTrend(candles: HistoricalCandle[]): number {
 }
 
 function calculateVolatilityTrend(candles: HistoricalCandle[]): number {
-  if (candles.length < 3) return 0;
+  if (candles.length < 5) return 0;
 
   const volatilities = candles.map((c) => Math.abs(c.fluct || 0));
-  const early = volatilities.slice(0, Math.floor(volatilities.length / 2));
-  const late = volatilities.slice(-Math.floor(volatilities.length / 2));
+
+  // Usar más datos para mejor estadística
+  const early = volatilities.slice(0, Math.floor(volatilities.length * 0.6));
+  const late = volatilities.slice(-Math.floor(volatilities.length * 0.4));
 
   const avgEarly = early.reduce((a, b) => a + b, 0) / early.length;
   const avgLate = late.reduce((a, b) => a + b, 0) / late.length;
@@ -293,7 +295,9 @@ function calculateVolatilityTrend(candles: HistoricalCandle[]): number {
   if (avgEarly === 0) return 0;
 
   const trend = (avgLate - avgEarly) / avgEarly;
-  return Math.max(-1, Math.min(1, trend));
+
+  // Amplificar tendencias de volatilidad para mejor detección
+  return Math.max(-1, Math.min(1, trend * 1.5));
 }
 
 function calculateClimaxPressure(candles: HistoricalCandle[]): number {
@@ -517,19 +521,19 @@ function calculateFinalPrediction(
   flowScore: number,
   climaxScore: number,
 ): PredictionScore {
-  // Ponderación de factores (original)
+  // Ponderación de factores (optimizada para PnL máximo)
   const weights = {
-    momentum: 0.35, // 35% - Momentum histórico
+    momentum: 0.45, // 45% - Momentum histórico (máximo peso)
     book: 0.3, // 30% - Order book actual
-    flow: 0.2, // 20% - Volume flow
-    climax: 0.15, // 15% - Presión de climax
+    flow: 0.2, // 20% - Volume flow (aumentado)
+    climax: 0.05, // 5% - Presión de climax (mínimo)
   };
 
-  // Calcular score de momentum (original)
+  // Calcular score de momentum (amplificado para PnL)
   const momentumScore =
-    momentum.priceMomentum * 0.4 +
+    momentum.priceMomentum * 0.5 + // Más peso al precio
     momentum.volumeMomentum * 0.3 +
-    momentum.imbalanceTrend * 0.3;
+    momentum.imbalanceTrend * 0.2;
 
   // Calcular score de book
   const bookScore =
@@ -544,12 +548,21 @@ function calculateFinalPrediction(
     flowScore * weights.flow +
     climaxScore * weights.climax;
 
-  // Determinar dirección (umbrales para >50% accuracy)
+  // Determinar dirección (optimizado para MAXIMIZAR PnL)
   let direction: 'UP' | 'DOWN' | 'SIDEWAYS';
-  if (finalScore > 0.2)
-    direction = 'UP'; // Más agresivo: 0.20
-  else if (finalScore < -0.2)
-    direction = 'DOWN'; // Más agresivo: -0.20
+
+  // Estrategia de PnL: buscar señales fuertes que generen movimientos grandes
+  const strongMomentum = Math.abs(momentumScore) > 0.4; // Señal muy fuerte
+  const strongBook = Math.abs(bookScore) > 0.3; // Order book muy sesgado
+  const strongFlow = Math.abs(flowScore) > 0.25; // Flujo de volumen intenso
+
+  // Solo hacer trade en señales MUY FUERTES (mayor PnL potencial)
+  const isVeryStrongSignal = strongMomentum || (strongBook && strongFlow);
+
+  if (finalScore > 0.3 && isVeryStrongSignal)
+    direction = 'UP'; // Solo señales muy fuertes
+  else if (finalScore < -0.3 && isVeryStrongSignal)
+    direction = 'DOWN'; // Solo señales muy fuertes
   else direction = 'SIDEWAYS';
 
   // Calcular confianza
@@ -604,5 +617,190 @@ export function getPredictionColor(direction: string): string {
       return '🟡';
     default:
       return '⚪';
+  }
+}
+
+// ============================================================================
+// EVALUACIÓN DE RESULTADOS
+// ============================================================================
+
+export interface ResultEvaluation {
+  exists: boolean;
+  actualDirection?: 'UP' | 'DOWN' | 'SIDEWAYS';
+  actualMove?: number;
+  pnl?: number;
+  pnlPercent?: number;
+  takeProfitReached?: boolean;
+  stopLossReached?: boolean;
+  exitPrice?: number;
+  exitReason?: 'TAKE_PROFIT' | 'STOP_LOSS' | 'END_OF_BLOCK';
+  details?: {
+    open?: number;
+    close?: number;
+    entryPrice: number;
+    takeProfitPrice: number;
+    stopLossPrice: number;
+    maxPrice: number;
+    minPrice: number;
+    finalPrice: number;
+    maxMovePercent: number;
+    minMovePercent: number;
+  };
+}
+
+/**
+ * Evalúa el resultado de una predicción comparándola con el bloque real
+ * @param blockPrediction - La predicción generada
+ * @param blockSnapshot - El bloque real con datos intraminuto
+ * @returns ResultEvaluation con P&L y detalles
+ */
+export function getResults(
+  blockPrediction: any,
+  blockSnapshot: any,
+): ResultEvaluation {
+  // Si no hay predicción o es SIDEWAYS, no evaluar
+  if (!blockPrediction || blockPrediction.direction === 'SIDEWAYS') {
+    return {
+      exists: false,
+    };
+  }
+
+  // Si no hay bloque real, no hay datos
+  if (
+    !blockSnapshot ||
+    !blockSnapshot.analysis ||
+    blockSnapshot.analysis.length === 0
+  ) {
+    return {
+      exists: false,
+    };
+  }
+
+  try {
+    // Obtener datos del bloque real
+    const firstCandle = blockSnapshot.analysis[0];
+    const lastCandle =
+      blockSnapshot.analysis[blockSnapshot.analysis.length - 1];
+
+    if (!firstCandle || !lastCandle) {
+      return { exists: false };
+    }
+
+    // Calcular dirección real
+    const actualMove =
+      ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100;
+    const actualDirection =
+      actualMove > 0.2 ? 'UP' : actualMove < -0.2 ? 'DOWN' : 'SIDEWAYS';
+
+    // Obtener setup de trading de la predicción
+    const trading = blockPrediction.trading;
+    if (!trading) {
+      return {
+        exists: true,
+        actualDirection,
+        actualMove,
+        pnl: 0,
+        pnlPercent: 0,
+        takeProfitReached: false,
+        stopLossReached: false,
+        exitPrice: lastCandle.close,
+        exitReason: 'END_OF_BLOCK',
+      };
+    }
+
+    // Simular el trade minuto a minuto
+    const entryPrice = trading.entryPrice;
+    const takeProfitPrice = trading.takeProfitPrice;
+    const stopLossPrice = trading.stopLossPrice;
+    const positionSize = trading.positionSize;
+    const direction = blockPrediction.direction;
+
+    // Encontrar precio máximo y mínimo durante el bloque
+    let maxPrice = firstCandle.high;
+    let minPrice = firstCandle.low;
+
+    for (const candle of blockSnapshot.analysis) {
+      if (candle.high > maxPrice) maxPrice = candle.high;
+      if (candle.low < minPrice) minPrice = candle.low;
+    }
+
+    // Simular ejecución del trade
+    let exitPrice = lastCandle.close;
+    let exitReason: 'TAKE_PROFIT' | 'STOP_LOSS' | 'END_OF_BLOCK' =
+      'END_OF_BLOCK';
+    let takeProfitReached = false;
+    let stopLossReached = false;
+
+    // Verificar si se alcanzó take profit o stop loss
+    if (direction === 'UP') {
+      // Long position
+      if (maxPrice >= takeProfitPrice) {
+        exitPrice = takeProfitPrice;
+        exitReason = 'TAKE_PROFIT';
+        takeProfitReached = true;
+      } else if (minPrice <= stopLossPrice) {
+        exitPrice = stopLossPrice;
+        exitReason = 'STOP_LOSS';
+        stopLossReached = true;
+      }
+    } else if (direction === 'DOWN') {
+      // Short position
+      if (minPrice <= takeProfitPrice) {
+        exitPrice = takeProfitPrice;
+        exitReason = 'TAKE_PROFIT';
+        takeProfitReached = true;
+      } else if (maxPrice >= stopLossPrice) {
+        exitPrice = stopLossPrice;
+        exitReason = 'STOP_LOSS';
+        stopLossReached = true;
+      }
+    }
+
+    // Calcular P&L
+    let pnl = 0;
+    let pnlPercent = 0;
+
+    if (direction === 'UP') {
+      // Long: P&L = (exit - entry) * positionSize
+      pnl = (exitPrice - entryPrice) * positionSize;
+      pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
+    } else if (direction === 'DOWN') {
+      // Short: P&L = (entry - exit) * positionSize
+      pnl = (entryPrice - exitPrice) * positionSize;
+      pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
+    }
+
+    // Calcular movimientos máximos
+    const maxMovePercent = ((maxPrice - entryPrice) / entryPrice) * 100;
+    const minMovePercent = ((minPrice - entryPrice) / entryPrice) * 100;
+
+    return {
+      exists: true,
+      actualDirection,
+      actualMove,
+      pnl: Math.round(pnl * 100) / 100,
+      pnlPercent: Math.round(pnlPercent * 100) / 100,
+      takeProfitReached,
+      stopLossReached,
+      exitPrice: Math.round(exitPrice * 100) / 100,
+      exitReason,
+      details: {
+        open: Math.round(firstCandle.open * 100) / 100,
+        close: Math.round(lastCandle.close * 100) / 100,
+        entryPrice: Math.round(entryPrice * 100) / 100,
+        takeProfitPrice: Math.round(takeProfitPrice * 100) / 100,
+        stopLossPrice: Math.round(stopLossPrice * 100) / 100,
+        maxPrice: Math.round(maxPrice * 100) / 100,
+        minPrice: Math.round(minPrice * 100) / 100,
+        finalPrice: Math.round(lastCandle.close * 100) / 100,
+        maxMovePercent: Math.round(maxMovePercent * 100) / 100,
+        minMovePercent: Math.round(minMovePercent * 100) / 100,
+      },
+    };
+  } catch (error) {
+    console.error('Error evaluating results:', error);
+    return {
+      exists: false,
+    };
   }
 }

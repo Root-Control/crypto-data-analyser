@@ -4,11 +4,13 @@ import { Model } from 'mongoose';
 import { CandleAnalyser } from '../schemas/candle-analyser.schema';
 import { BookService } from '../../book/book.service';
 import {
-  predictNextCandle,
   formatPrediction,
   getPredictionColor,
+  getResults,
   type HistoricalCandle,
+  type ResultEvaluation,
 } from '../../../helpers/predictionEngine';
+import { algoritmo3 } from '../../../algorithms/algoritmo3';
 
 interface ValidationResult {
   validBlocks: CandleAnalyser[];
@@ -67,151 +69,524 @@ export class RetroactivePredictionController {
     private bookService: BookService,
   ) {}
 
-  @Get('analyze')
-  async analyzeRetroactive(
+  @Get('debug-gaps')
+  async debugGaps(@Query('pair') pair = 'ETHUSDT') {
+    try {
+      const allBlocks = await this.getAllBlocksSorted(pair);
+
+      if (allBlocks.length === 0) {
+        return {
+          success: false,
+          error: 'No se encontraron bloques de datos',
+        };
+      }
+
+      // Analizar gaps sin sanitizar
+      const gaps = [];
+      for (let i = 1; i < allBlocks.length; i++) {
+        const prevBlock = allBlocks[i - 1];
+        const currentBlock = allBlocks[i];
+
+        const prevTime = new Date(
+          `${prevBlock.startDate}T${prevBlock.startTime}:00`,
+        );
+        const currentTime = new Date(
+          `${currentBlock.startDate}T${currentBlock.startTime}:00`,
+        );
+        const diffMinutes =
+          (currentTime.getTime() - prevTime.getTime()) / (1000 * 60);
+
+        if (diffMinutes !== 15) {
+          gaps.push({
+            from: `${prevBlock.startDate}_${prevBlock.startTime}`,
+            to: `${currentBlock.startDate}_${currentBlock.startTime}`,
+            gapMinutes: diffMinutes,
+            gapType: diffMinutes > 15 ? 'SALTO' : 'RETROCESO',
+          });
+        }
+      }
+
+      // Encontrar la secuencia más larga sin gaps
+      const sequences = [];
+      let currentSequence = [allBlocks[0]];
+
+      for (let i = 1; i < allBlocks.length; i++) {
+        const prevBlock = allBlocks[i - 1];
+        const currentBlock = allBlocks[i];
+
+        const prevTime = new Date(
+          `${prevBlock.startDate}T${prevBlock.startTime}:00`,
+        );
+        const currentTime = new Date(
+          `${currentBlock.startDate}T${currentBlock.startTime}:00`,
+        );
+        const diffMinutes =
+          (currentTime.getTime() - prevTime.getTime()) / (1000 * 60);
+
+        if (diffMinutes === 15) {
+          // Continuar la secuencia
+          currentSequence.push(currentBlock);
+        } else {
+          // Guardar secuencia actual y empezar nueva
+          if (currentSequence.length >= 3) {
+            sequences.push({
+              length: currentSequence.length,
+              start: `${currentSequence[0].startDate}_${currentSequence[0].startTime}`,
+              end: `${currentSequence[currentSequence.length - 1].startDate}_${currentSequence[currentSequence.length - 1].startTime}`,
+              blocks: currentSequence.map(
+                (b) => `${b.startDate}_${b.startTime}`,
+              ),
+            });
+          }
+          currentSequence = [currentBlock];
+        }
+      }
+
+      // Agregar la última secuencia
+      if (currentSequence.length >= 3) {
+        sequences.push({
+          length: currentSequence.length,
+          start: `${currentSequence[0].startDate}_${currentSequence[0].startTime}`,
+          end: `${currentSequence[currentSequence.length - 1].startDate}_${currentSequence[currentSequence.length - 1].startTime}`,
+          blocks: currentSequence.map((b) => `${b.startDate}_${b.startTime}`),
+        });
+      }
+
+      return {
+        success: true,
+        totalBlocks: allBlocks.length,
+        gapsFound: gaps.length,
+        gaps: gaps,
+        sequences: sequences,
+        longestSequence:
+          sequences.length > 0
+            ? sequences.reduce((longest, current) =>
+                current.length > longest.length ? current : longest,
+              )
+            : null,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  @Get('predict')
+  async predict(
     @Query('pair') pair = 'ETHUSDT',
-    @Query('capital') capital = '400',
-    @Query('leverage') leverage = '10',
+    @Query('showResults') showResults?: string,
   ) {
     try {
-      const capitalAmount = parseFloat(capital);
-      const leverageAmount = parseFloat(leverage);
+      this.logger.log(`🔮 Iniciando predicciones para ${pair}`);
 
-      this.logger.log(
-        `🔮 Análisis retroactivo para ${pair} | Capital: $${capitalAmount} | Leverage: ${leverageAmount}x`,
-      );
-
-      // PASO 1: Obtener todos los bloques ordenados
+      // PASO 1: Obtener datos sanitizados
       const allBlocks = await this.getAllBlocksSorted(pair);
-      this.logger.log(`📊 Encontrados ${allBlocks.length} bloques totales`);
+      const sanitizedBlocks = await this.getLongestSequence(allBlocks);
 
-      if (allBlocks.length < 3) {
+      if (sanitizedBlocks.length < 3) {
         return {
           success: false,
-          error: `Insuficientes bloques: ${allBlocks.length} (mínimo 3)`,
-          blocksFound: allBlocks.length,
+          error: `Bloques insuficientes: ${sanitizedBlocks.length}`,
+          timestamp: new Date().toISOString(),
         };
       }
 
-      // PASO 2: Validar y limpiar bloques
-      const validation = this.validateAndCleanBlocks(allBlocks);
-      this.logger.log(
-        `✅ Bloques válidos: ${validation.validBlocks.length} | Eliminados: ${validation.removedBlocks.length}`,
-      );
+      this.logger.log(`📊 Bloques sanitizados: ${sanitizedBlocks.length}`);
 
-      if (validation.validBlocks.length < 3) {
-        return {
-          success: false,
-          error: `Insuficientes bloques válidos: ${validation.validBlocks.length} (mínimo 3)`,
-          validation,
-        };
+      // PASO 2: ITERAR todos los items sanitizados para generar predicciones
+      const predictions = [];
+      for (let i = 0; i < sanitizedBlocks.length; i++) {
+        // PASO 3: Array histórico desde 0 hasta i
+        const historicalBlocks = sanitizedBlocks.slice(0, i + 1);
+
+        // PASO 4: Llamar función predict() separada
+        const prediction = await this.predictForHistoricalBlocks(
+          historicalBlocks,
+          i,
+        );
+
+        // PASO 5: Atachar predicción al item actual
+        const currentBlock = sanitizedBlocks[i];
+        const predictionForNextMinute = prediction
+          ? {
+              ...prediction,
+              nextMinuteTimePrediction: {
+                fecha: prediction.targetBlock?.fecha,
+                hora: prediction.targetBlock?.hora,
+              },
+            }
+          : null;
+
+        predictions.push({
+          index: i,
+          bloqueId: `${currentBlock.startDate}_${currentBlock.startTime}`,
+          fecha: currentBlock.startDate,
+          hora: currentBlock.startTime,
+          status: currentBlock.status,
+          analysisCount: currentBlock.analysis?.length || 0,
+          historicalBlocksCount: historicalBlocks.length,
+          predictionForNextMinute: predictionForNextMinute,
+        });
+
+        this.logger.debug(
+          `🔮 Índice ${i}: ${historicalBlocks.length} bloques históricos → ${predictionForNextMinute?.direction || 'N/A'}`,
+        );
       }
 
-      // PASO 3: Ejecutar análisis retroactivo
-      const analysis = await this.executeRetroactiveAnalysis(
-        validation.validBlocks,
-        capitalAmount,
-        leverageAmount,
-      );
+      // PASO 6: TERCER STAGE - Evaluar resultados
+      const results = [];
+      let a3Evaluated = 0,
+        a3Correct = 0;
+      for (let i = 0; i < predictions.length; i++) {
+        const prediction = predictions[i];
+        const currentBlock = sanitizedBlocks[i];
 
-      // PASO 4: Preparar respuesta con grupos y predicciones
-      const now = new Date();
-      const currentTime = now.toLocaleTimeString('en-GB', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+        // Buscar el bloque siguiente para evaluar resultado
+        const nextBlock = sanitizedBlocks[i + 1];
 
-      const response = {
-        success: true,
-        pair,
-        timestamp: now.toISOString(),
-        temporalidad: currentTime,
-        parameters: {
-          capital: capitalAmount,
-          leverage: leverageAmount,
-        },
-        validation: {
-          validBlocksQty: validation.validBlocks.length,
-          removedBlocksQty: validation.removedBlocks.length,
-        },
-        grupos: validation.validBlocks.map((block, index) => {
-          // Buscar predicción para este grupo (si existe)
-          const prediction = analysis.predictions.find(
-            (p) => p.index === index,
+        let resultEvaluation: ResultEvaluation = { exists: false };
+
+        // Solo evaluar si hay predicción y no es SIDEWAYS
+        if (
+          prediction.predictionForNextMinute &&
+          prediction.predictionForNextMinute.direction !== 'SIDEWAYS' &&
+          nextBlock
+        ) {
+          // Llamar a getResults con la predicción y el bloque siguiente
+          resultEvaluation = getResults(
+            prediction.predictionForNextMinute,
+            nextBlock,
           );
 
-          return {
-            indice: index,
-            bloqueId: `${block.startDate}_${block.startTime}`,
-            fecha: block.startDate,
-            hora: block.startTime,
-            status: block.status,
-            analysisCount: block.analysis.length,
-            nextCandlePrediction: prediction
-              ? {
-                  direccion: prediction.prediction.direction,
-                  confianza:
-                    Math.round(prediction.prediction.confidence * 100) / 100,
-                  movimientoEsperado:
-                    Math.round(prediction.prediction.expectedMove * 10000) /
-                    10000,
-                  riesgo: prediction.prediction.riskLevel,
-                  targetBlock: validation.validBlocks[index + 1]
-                    ? {
-                        bloqueId: `${validation.validBlocks[index + 1].startDate}_${validation.validBlocks[index + 1].startTime}`,
-                        fecha: validation.validBlocks[index + 1].startDate,
-                        hora: validation.validBlocks[index + 1].startTime,
-                      }
-                    : null,
-                }
-              : null,
-            resultado: prediction?.targetBlock.exists
-              ? {
-                  direccionReal: prediction.targetBlock.actualDirection,
-                  movimientoReal:
-                    Math.round(prediction.targetBlock.actualMove * 10000) /
-                    10000,
-                  correcto:
-                    prediction.prediction.direction ===
-                    prediction.targetBlock.actualDirection,
-                }
-              : prediction
-                ? { existe: false }
-                : null,
-            trading: prediction?.trading
-              ? {
-                  entryPrice:
-                    Math.round(prediction.trading.entryPrice * 100) / 100,
-                  exitPrice:
-                    Math.round(prediction.trading.exitPrice * 100) / 100,
-                  pnl: Math.round(prediction.trading.pnl * 100) / 100,
-                  pnlPercent:
-                    Math.round(prediction.trading.pnlPercent * 100) / 100,
-                }
-              : null,
-            puedePredecir: index >= 2, // Solo grupos 2+ pueden tener predicción
-          };
+          this.logger.debug(
+            `📊 Evaluando resultado ${i}: ${prediction.predictionForNextMinute.direction} → ${resultEvaluation.exists ? 'EXISTS' : 'NO_DATA'}`,
+          );
+
+          // Contabilizar para algoritmo3
+          a3Evaluated++;
+          if (
+            resultEvaluation.actualDirection ===
+            prediction.predictionForNextMinute.direction
+          )
+            a3Correct++;
+        }
+
+        // Solo algoritmo3
+
+        // Construir resultado final sin datos intraminuto
+        const firstNext = nextBlock?.analysis?.[0];
+        const lastNext = nextBlock?.analysis?.[nextBlock?.analysis?.length - 1];
+        const round2 = (n: number) =>
+          typeof n === 'number' ? Math.round(n * 100) / 100 : n;
+        const finalResult = {
+          index: prediction.index,
+          bloqueId: prediction.bloqueId,
+          fecha: prediction.fecha,
+          hora: prediction.hora,
+          status: prediction.status,
+          analysisCount: prediction.analysisCount,
+          historicalBlocksCount: prediction.historicalBlocksCount,
+          predictionForNextMinute: prediction.predictionForNextMinute,
+          resultado: resultEvaluation.exists
+            ? {
+                existe: true,
+                direccionReal: resultEvaluation.actualDirection,
+                movimientoReal: resultEvaluation.actualMove,
+                pnl: resultEvaluation.pnl,
+                pnlPercent: resultEvaluation.pnlPercent,
+                takeProfitReached: resultEvaluation.takeProfitReached,
+                stopLossReached: resultEvaluation.stopLossReached,
+                exitPrice: resultEvaluation.exitPrice,
+                exitReason: resultEvaluation.exitReason,
+                correcto:
+                  resultEvaluation.actualDirection ===
+                  prediction.predictionForNextMinute?.direction,
+                detalles: {
+                  open:
+                    (resultEvaluation.details as any)?.open ??
+                    (firstNext ? round2(firstNext.open) : null),
+                  close:
+                    (resultEvaluation.details as any)?.close ??
+                    (lastNext ? round2(lastNext.close) : null),
+                  ...(resultEvaluation.details || {}),
+                },
+              }
+            : { existe: false },
+        };
+
+        results.push(finalResult);
+      }
+
+      // Calcular estadísticas de resultados
+      const validResults = results.filter(
+        (r) => r.resultado && r.resultado.existe,
+      );
+      const correctPredictions = validResults.filter(
+        (r) => r.resultado.correcto,
+      ).length;
+      const totalPnL = validResults.reduce(
+        (sum, r) => sum + (r.resultado.pnl || 0),
+        0,
+      );
+      const totalPnLPercent = validResults.reduce(
+        (sum, r) => sum + (r.resultado.pnlPercent || 0),
+        0,
+      );
+      const accuracy =
+        validResults.length > 0
+          ? (correctPredictions / validResults.length) * 100
+          : 0;
+
+      const response: any = {
+        success: true,
+        pair,
+        timestamp: new Date().toISOString(),
+        temporalidad: new Date().toLocaleTimeString('es-ES', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
         }),
-        resumen: {
-          totalPredictions: analysis.summary.totalPredictions,
-          correctPredictions: analysis.summary.correctPredictions,
-          accuracy: Math.round(analysis.summary.accuracy * 100) / 100,
-          totalPnL: Math.round(analysis.summary.totalPnL * 100) / 100,
-          totalPnLPercent:
-            Math.round(analysis.summary.totalPnLPercent * 100) / 100,
+        data: {
+          totalBlocks: sanitizedBlocks.length,
+          predictionsGenerated: results.filter(
+            (r) => r.predictionForNextMinute !== null,
+          ).length,
+          resultsEvaluated: validResults.length,
+          correctPredictions,
+          accuracy: Math.round(accuracy * 100) / 100,
+          totalPnL: Math.round(totalPnL * 100) / 100,
+          totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
+          // Resumen dentro de data solo de algoritmo3
+          algorithms: {
+            algoritmo3: {
+              resultsEvaluated: a3Evaluated,
+              correctPredictions: a3Correct,
+              accuracy:
+                a3Evaluated > 0
+                  ? Math.round((a3Correct / a3Evaluated) * 100 * 100) / 100
+                  : 0,
+            },
+          },
         },
-        insights: this.generateInsights(analysis),
+        results: results,
       };
 
+      // Adjuntar resumen solo de algoritmo3 a nivel top-level
+      response.algorithms = {
+        algoritmo3: {
+          resultsEvaluated: a3Evaluated,
+          correctPredictions: a3Correct,
+          accuracy:
+            a3Evaluated > 0
+              ? Math.round((a3Correct / a3Evaluated) * 100 * 100) / 100
+              : 0,
+        },
+      };
+
+      // Ocultar resultados si showResults indica falso
+      const hideResults =
+        showResults === 'false' ||
+        showResults === '0' ||
+        showResults === 'no' ||
+        showResults === 'off';
+      if (hideResults) {
+        delete response.results;
+      }
+
+      // Log de depuración: presencia de algorithms y sus métricas
+      try {
+        this.logger.log(
+          `🧪 Algorithms summary → a3: ${a3Correct}/${a3Evaluated}`,
+        );
+        this.logger.log(
+          `🧪 response.algorithms present: ${'algorithms' in response}`,
+        );
+        this.logger.log(
+          `🧪 showResults param: ${showResults} → hideResults=${hideResults}`,
+        );
+      } catch (e) {
+        this.logger.warn(`Algorithms debug log error: ${(e as any)?.message}`);
+      }
+
       this.logger.log(
-        `✅ Análisis completado: ${analysis.summary.correctPredictions}/${analysis.summary.totalPredictions} correctas (${analysis.summary.accuracy.toFixed(1)}%)`,
+        `✅ Predicciones completadas: ${results.filter((r) => r.predictionForNextMinute !== null).length}/${sanitizedBlocks.length}`,
+      );
+      this.logger.log(
+        `📊 Resultados evaluados: ${validResults.length} | Precisión: ${accuracy.toFixed(1)}% | P&L: $${totalPnL.toFixed(2)} (${totalPnLPercent.toFixed(1)}%)`,
       );
 
       return response;
     } catch (error) {
       this.logger.error(
-        `❌ Error en análisis retroactivo: ${error.message}`,
+        `❌ Error en predicciones: ${error.message}`,
+        error.stack,
+      );
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  @Get('deep-analysis')
+  async deepAnalysis(
+    @Query('pair') pair = 'ETHUSDT',
+    @Query('capital') capital = 400,
+    @Query('leverage') leverage = 10,
+  ) {
+    try {
+      const allBlocks = await this.getAllBlocksSorted(pair);
+
+      if (allBlocks.length < 3) {
+        return {
+          success: false,
+          error: `Insuficientes bloques: ${allBlocks.length}`,
+          blocksFound: allBlocks.length,
+        };
+      }
+
+      const validation = this.validateAndCleanBlocks(allBlocks);
+
+      if (validation.validBlocks.length < 3) {
+        return {
+          success: false,
+          error: `Insuficientes bloques válidos: ${validation.validBlocks.length}`,
+        };
+      }
+
+      // Análisis profundo: solo predicciones UP/DOWN con trading
+      const analysis = await this.executeRetroactiveAnalysis(
+        validation.validBlocks,
+        capital,
+        leverage,
+      );
+
+      // Filtrar solo predicciones UP/DOWN (excluir SIDEWAYS y sin predicción)
+      const tradingPredictions = analysis.predictions.filter(
+        (p) =>
+          p.prediction &&
+          p.prediction.direction !== 'SIDEWAYS' &&
+          p.trading !== null,
+      );
+
+      const summary = this.calculateSummary(tradingPredictions);
+
+      const response = {
+        success: true,
+        pair,
+        timestamp: new Date().toISOString(),
+        temporalidad: new Date().toLocaleTimeString('es-ES', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        parameters: {
+          capital,
+          leverage,
+        },
+        validation: {
+          validBlocksQty: validation.validBlocks.length,
+          removedBlocksQty: validation.removedBlocks.length,
+        },
+        // Solo grupos con predicciones UP/DOWN
+        grupos: analysis.predictions
+          .filter(
+            (p) =>
+              p.prediction &&
+              p.prediction.direction !== 'SIDEWAYS' &&
+              p.trading !== null,
+          )
+          .map((prediction, index) => {
+            const blockIndex = prediction.index;
+            const currentBlock = validation.validBlocks[blockIndex];
+
+            return {
+              indice: blockIndex,
+              bloqueId: `${currentBlock.startDate}_${currentBlock.startTime}`,
+              fecha: currentBlock.startDate,
+              hora: currentBlock.startTime,
+              status: currentBlock.status,
+              analysisCount: currentBlock.analysis.length,
+              nextCandlePrediction: {
+                direccion: prediction.prediction.direction,
+                confianza:
+                  Math.round(prediction.prediction.confidence * 100) / 100,
+                movimientoEsperado:
+                  Math.round(prediction.prediction.expectedMove * 10000) /
+                  10000,
+                riesgo: prediction.prediction.riskLevel,
+                targetBlock: {
+                  bloqueId: `bloque_${prediction.index + 1}`,
+                  fecha: 'N/A',
+                  hora: 'N/A',
+                },
+              },
+              resultado: prediction.targetBlock.exists
+                ? {
+                    direccionReal: prediction.targetBlock.actualDirection,
+                    movimientoReal:
+                      Math.round(prediction.targetBlock.actualMove * 10000) /
+                      10000,
+                    correcto: this.isPredictionCorrect(
+                      prediction.prediction.direction,
+                      prediction.targetBlock.actualDirection,
+                    ),
+                  }
+                : prediction
+                  ? { existe: false }
+                  : null,
+              trading: prediction?.trading
+                ? {
+                    entryPrice:
+                      Math.round(prediction.trading.entryPrice * 100) / 100,
+                    exitPrice:
+                      Math.round(prediction.trading.exitPrice * 100) / 100,
+                    takeProfitPrice: (prediction.trading as any).takeProfitPrice
+                      ? Math.round(
+                          (prediction.trading as any).takeProfitPrice * 100,
+                        ) / 100
+                      : null,
+                    pnl: Math.round(prediction.trading.pnl * 100) / 100,
+                    pnlPercent:
+                      Math.round(prediction.trading.pnlPercent * 100) / 100,
+                    takeProfitReached: (prediction.trading as any)
+                      .takeProfitReached,
+                    expectedMove: (prediction.trading as any).expectedMove,
+                    takeProfitPercent: (prediction.trading as any)
+                      .takeProfitPercent
+                      ? Math.round(
+                          (prediction.trading as any).takeProfitPercent * 100,
+                        ) / 100
+                      : null,
+                  }
+                : null,
+              puedePredecir: blockIndex >= 2,
+            };
+          }),
+        resumen: {
+          totalPredictions: summary.totalPredictions,
+          correctPredictions: summary.correctPredictions,
+          accuracy: Math.round(summary.accuracy * 100) / 100,
+          totalPnL: Math.round(summary.totalPnL * 100) / 100,
+          totalPnLPercent: Math.round(summary.totalPnLPercent * 100) / 100,
+        },
+        insights: this.generateInsights({
+          ...analysis,
+          summary,
+        }),
+      };
+
+      this.logger.log(
+        `✅ Análisis profundo completado: ${summary.correctPredictions}/${summary.totalPredictions} correctas (${summary.accuracy.toFixed(1)}%)`,
+      );
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `❌ Error en análisis profundo: ${error.message}`,
         error.stack,
       );
       return {
@@ -406,7 +781,7 @@ export class RetroactivePredictionController {
           currentBlock.analysis[currentBlock.analysis.length - 1]?.book || null;
 
         // Ejecutar predicción
-        const prediction = predictNextCandle(historicalCandles, currentBook, 3);
+        const prediction = algoritmo3(historicalCandles, currentBook, 3);
 
         // Verificar si existe el bloque siguiente
         const targetBlock = nextBlock
@@ -419,12 +794,11 @@ export class RetroactivePredictionController {
               exists: false,
             };
 
-        // Calcular PnL si existe el bloque siguiente
+        // Calcular setup de trading (SIN usar datos del nextBlock)
         let trading = null;
-        if (targetBlock.exists && nextBlock) {
-          trading = this.calculateTradingPnL(
+        if (prediction.direction !== 'SIDEWAYS') {
+          trading = this.calculateTradingSetup(
             currentBlock,
-            nextBlock,
             prediction,
             capital,
             leverage,
@@ -513,9 +887,394 @@ export class RetroactivePredictionController {
     return ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100;
   }
 
-  private calculateTradingPnL(
+  private async predictForHistoricalBlocks(
+    historicalBlocks: CandleAnalyser[],
+    currentIndex: number,
+  ): Promise<any> {
+    try {
+      // REGLA: Si array length <= 2, return null (no hay suficientes datos)
+      if (historicalBlocks.length <= 2) {
+        return null;
+      }
+
+      // Convertir a formato histórico para el motor de predicción
+      const historicalCandles =
+        this.convertBlocksToHistoricalCandles(historicalBlocks);
+
+      // Obtener order book del último minuto del bloque actual
+      const currentBlock = historicalBlocks[historicalBlocks.length - 1];
+      const currentBook =
+        currentBlock.analysis[currentBlock.analysis.length - 1]?.book || null;
+
+      // Usar el motor de predicción existente
+      const prediction = algoritmo3(historicalCandles, currentBook, 3);
+
+      // Crear trading setup mejorado (sin usar datos futuros)
+      const entryPrice =
+        currentBlock.analysis[currentBlock.analysis.length - 1].close;
+      const expectedMovePercent = prediction.expectedMove / 100;
+      const takeProfitPercent = Math.min(expectedMovePercent * 1.0, 0.02); // 100% del movimiento esperado, max 2%
+      const stopLossPercent = 0.01; // 1.0% Stop Loss
+
+      let takeProfitPrice = 0;
+      let stopLossPrice = 0;
+      let positionSize = 0;
+
+      if (prediction.direction === 'UP') {
+        takeProfitPrice = entryPrice * (1 + takeProfitPercent);
+        stopLossPrice = entryPrice * (1 - stopLossPercent);
+        positionSize = (400 * 10) / entryPrice; // Capital fijo: $400, leverage: 10x
+      } else if (prediction.direction === 'DOWN') {
+        takeProfitPrice = entryPrice * (1 - takeProfitPercent);
+        stopLossPrice = entryPrice * (1 + stopLossPercent);
+        positionSize = (400 * 10) / entryPrice; // Capital fijo: $400, leverage: 10x
+      }
+
+      return {
+        direction: prediction.direction,
+        confidence: Math.round(prediction.confidence * 100) / 100,
+        expectedMove: Math.round(prediction.expectedMove * 10000) / 10000,
+        riskLevel: prediction.riskLevel,
+        trading: {
+          entryPrice: Math.round(entryPrice * 100) / 100,
+          takeProfitPrice: Math.round(takeProfitPrice * 100) / 100,
+          stopLossPrice: Math.round(stopLossPrice * 100) / 100,
+          positionSize: Math.round(positionSize * 10000) / 10000,
+          takeProfitPercent: Math.round(takeProfitPercent * 10000) / 100,
+          stopLossPercent: Math.round(stopLossPercent * 10000) / 100,
+          capital: 400,
+          leverage: 10,
+        },
+        analysis: {
+          momentumScore:
+            Math.round(prediction.breakdown.momentumScore * 100) / 100,
+          bookScore: Math.round(prediction.breakdown.bookScore * 100) / 100,
+          flowScore: Math.round(prediction.breakdown.flowScore * 100) / 100,
+          climaxScore: Math.round(prediction.breakdown.climaxScore * 100) / 100,
+        },
+        targetBlock: {
+          // Calculamos el siguiente bloque (15 minutos después)
+          bloqueId: this.calculateNextBlockId(
+            currentBlock.startDate,
+            currentBlock.startTime,
+          ),
+          fecha: this.calculateNextDate(
+            currentBlock.startDate,
+            currentBlock.startTime,
+          ),
+          hora: this.calculateNextTime(currentBlock.startTime),
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Error en predicción para índice ${currentIndex}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  private calculateNextBlockId(startDate: string, startTime: string): string {
+    const nextTime = this.calculateNextTime(startTime);
+    const nextDate = this.calculateNextDate(startDate, startTime);
+    return `${nextDate}_${nextTime}`;
+  }
+
+  private calculateNextDate(startDate: string, startTime: string): string {
+    // Convertir a Date object
+    const currentDateTime = new Date(`${startDate}T${startTime}:00`);
+
+    // Agregar 15 minutos
+    const nextDateTime = new Date(currentDateTime.getTime() + 15 * 60 * 1000);
+
+    // Retornar solo la fecha en formato YYYY-MM-DD
+    return nextDateTime.toISOString().split('T')[0];
+  }
+
+  private calculateNextTime(startTime: string): string {
+    // Extraer horas y minutos
+    const [hours, minutes] = startTime.split(':').map(Number);
+
+    // Agregar 15 minutos
+    let nextMinutes = minutes + 15;
+    let nextHours = hours;
+
+    // Manejar desbordamiento de minutos
+    if (nextMinutes >= 60) {
+      nextMinutes -= 60;
+      nextHours += 1;
+    }
+
+    // Manejar desbordamiento de horas (24 horas)
+    if (nextHours >= 24) {
+      nextHours -= 24;
+    }
+
+    // Formatear con ceros a la izquierda
+    return `${nextHours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}`;
+  }
+
+  private async getLongestSequence(
+    blocks: CandleAnalyser[],
+  ): Promise<CandleAnalyser[]> {
+    // Encontrar la secuencia más larga sin gaps
+    const sequences = [];
+    let currentSequence = [blocks[0]];
+
+    for (let i = 1; i < blocks.length; i++) {
+      const prevBlock = blocks[i - 1];
+      const currentBlock = blocks[i];
+
+      const prevTime = new Date(
+        `${prevBlock.startDate}T${prevBlock.startTime}:00`,
+      );
+      const currentTime = new Date(
+        `${currentBlock.startDate}T${currentBlock.startTime}:00`,
+      );
+      const diffMinutes =
+        (currentTime.getTime() - prevTime.getTime()) / (1000 * 60);
+
+      if (diffMinutes === 15) {
+        // Continuar la secuencia
+        currentSequence.push(currentBlock);
+      } else {
+        // Guardar secuencia actual y empezar nueva
+        if (currentSequence.length >= 3) {
+          sequences.push(currentSequence);
+        }
+        currentSequence = [currentBlock];
+      }
+    }
+
+    // Agregar la última secuencia
+    if (currentSequence.length >= 3) {
+      sequences.push(currentSequence);
+    }
+
+    // Retornar la secuencia más larga
+    if (sequences.length === 0) {
+      this.logger.warn('❌ No se encontraron secuencias válidas');
+      return [];
+    }
+
+    const longestSequence = sequences.reduce((longest, current) =>
+      current.length > longest.length ? current : longest,
+    );
+
+    this.logger.log(
+      `🏆 Secuencia más larga: ${longestSequence.length} bloques`,
+    );
+    this.logger.log(
+      `📍 Desde: ${longestSequence[0].startDate}_${longestSequence[0].startTime}`,
+    );
+    this.logger.log(
+      `📍 Hasta: ${longestSequence[longestSequence.length - 1].startDate}_${longestSequence[longestSequence.length - 1].startTime}`,
+    );
+
+    return longestSequence;
+  }
+
+  private sanitizeConsecutiveBlocks(
+    blocks: CandleAnalyser[],
+  ): CandleAnalyser[] {
+    if (blocks.length === 0) return [];
+
+    // PASO 1: Verificar que todos tengan exactamente 15 analysis items
+    const validBlocks = blocks.filter((block) => {
+      if (!block.analysis || block.analysis.length !== 15) {
+        this.logger.warn(
+          `⚠️ Bloque ${block.startDate}_${block.startTime} tiene ${block.analysis?.length || 0} items (debe tener 15)`,
+        );
+        return false;
+      }
+      return true;
+    });
+
+    if (validBlocks.length === 0) {
+      this.logger.error('❌ No hay bloques válidos con 15 analysis items');
+      return [];
+    }
+
+    // PASO 2: Verificar intervalos de 15 minutos consecutivos
+    const sanitizedBlocks: CandleAnalyser[] = [];
+
+    for (let i = 0; i < validBlocks.length; i++) {
+      const currentBlock = validBlocks[i];
+
+      if (i === 0) {
+        // Primer bloque siempre es válido
+        sanitizedBlocks.push(currentBlock);
+        continue;
+      }
+
+      const prevBlock = validBlocks[i - 1];
+
+      // Calcular diferencia en minutos entre bloques
+      const prevTime = new Date(
+        `${prevBlock.startDate}T${prevBlock.startTime}:00`,
+      );
+      const currentTime = new Date(
+        `${currentBlock.startDate}T${currentBlock.startTime}:00`,
+      );
+      const diffMinutes =
+        (currentTime.getTime() - prevTime.getTime()) / (1000 * 60);
+
+      if (diffMinutes === 15) {
+        // Intervalo correcto de 15 minutos
+        sanitizedBlocks.push(currentBlock);
+      } else {
+        // Gap detectado - eliminar todos los bloques anteriores y empezar de nuevo
+        this.logger.warn(
+          `⚠️ Gap detectado: ${diffMinutes} minutos entre ${prevBlock.startDate}_${prevBlock.startTime} y ${currentBlock.startDate}_${currentBlock.startTime}`,
+        );
+        this.logger.warn(
+          `🧹 Eliminando ${sanitizedBlocks.length} bloques anteriores para mantener correlación`,
+        );
+
+        // Limpiar array y empezar desde el bloque actual
+        sanitizedBlocks.length = 0;
+        sanitizedBlocks.push(currentBlock);
+      }
+    }
+
+    this.logger.log(
+      `🧹 Sanitización completada: ${blocks.length} → ${sanitizedBlocks.length} bloques válidos`,
+    );
+    return sanitizedBlocks;
+  }
+
+  private generatePredictions(
+    blocks: CandleAnalyser[],
+    capital: number,
+    leverage: number,
+  ): any[] {
+    const predictions: any[] = [];
+
+    // Iterar desde índice 2 (necesita 2 previos)
+    for (let i = 2; i < blocks.length; i++) {
+      const currentBlock = blocks[i];
+      const historicalBlocks = blocks.slice(0, i + 1); // Incluir el bloque actual
+
+      try {
+        // Convertir bloques históricos a formato para predicción
+        const historicalCandles =
+          this.convertBlocksToHistoricalCandles(historicalBlocks);
+
+        // Obtener order book del último minuto del bloque actual
+        const currentBook =
+          currentBlock.analysis[currentBlock.analysis.length - 1]?.book || null;
+
+        // Generar predicción completa
+        const prediction = this.createCompletePrediction(
+          historicalCandles,
+          currentBook,
+          currentBlock,
+          capital,
+          leverage,
+        );
+
+        predictions.push({
+          index: i,
+          currentBlock: {
+            bloqueId: `${currentBlock.startDate}_${currentBlock.startTime}`,
+            fecha: currentBlock.startDate,
+            hora: currentBlock.startTime,
+            status: currentBlock.status,
+            analysisCount: currentBlock.analysis.length,
+          },
+          prediction: prediction,
+          historicalBlocksCount: historicalBlocks.length,
+          // NO incluimos resultado ni trading en esta etapa de sanitización
+        });
+
+        this.logger.debug(
+          `🔮 Predicción generada para índice ${i}: ${prediction.direction} (${prediction.confidence}%)`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `❌ Error generando predicción para índice ${i}: ${error.message}`,
+        );
+      }
+    }
+
+    return predictions;
+  }
+
+  private createCompletePrediction(
+    historicalCandles: HistoricalCandle[],
+    currentBook: any,
     currentBlock: CandleAnalyser,
-    nextBlock: CandleAnalyser,
+    capital: number,
+    leverage: number,
+  ): any {
+    // Usar el motor de predicción existente
+    const prediction = algoritmo3(historicalCandles, currentBook, 3);
+
+    // Calcular setup de trading completo
+    const entryPrice =
+      currentBlock.analysis[currentBlock.analysis.length - 1].close;
+    const expectedMovePercent = prediction.expectedMove / 100;
+    const takeProfitPercent = Math.min(expectedMovePercent * 1.0, 0.02); // 100% del movimiento esperado, máximo 2%
+    const stopLossPercent = 0.01; // 1.0% Stop Loss fijo
+
+    let takeProfitPrice = 0;
+    let stopLossPrice = 0;
+    let positionSize = 0;
+
+    if (prediction.direction === 'UP') {
+      takeProfitPrice = entryPrice * (1 + takeProfitPercent);
+      stopLossPrice = entryPrice * (1 - stopLossPercent);
+      positionSize = (capital * leverage) / entryPrice;
+    } else if (prediction.direction === 'DOWN') {
+      takeProfitPrice = entryPrice * (1 - takeProfitPercent);
+      stopLossPrice = entryPrice * (1 + stopLossPercent);
+      positionSize = (capital * leverage) / entryPrice;
+    }
+
+    return {
+      direction: prediction.direction,
+      confidence: Math.round(prediction.confidence * 100) / 100,
+      expectedMove: Math.round(prediction.expectedMove * 10000) / 10000,
+      riskLevel: prediction.riskLevel,
+
+      // Trading setup
+      trading: {
+        entryPrice: Math.round(entryPrice * 100) / 100,
+        takeProfitPrice:
+          takeProfitPrice > 0 ? Math.round(takeProfitPrice * 100) / 100 : 0,
+        stopLossPrice:
+          stopLossPrice > 0 ? Math.round(stopLossPrice * 100) / 100 : 0,
+        positionSize: Math.round(positionSize * 100) / 100,
+        takeProfitPercent: Math.round(takeProfitPercent * 10000) / 100,
+        stopLossPercent: Math.round(stopLossPercent * 10000) / 100,
+        capital,
+        leverage,
+      },
+
+      // Análisis detallado
+      analysis: {
+        momentumScore: prediction.breakdown.momentumScore,
+        bookScore: prediction.breakdown.bookScore,
+        flowScore: prediction.breakdown.flowScore,
+        climaxScore: prediction.breakdown.climaxScore,
+      },
+    };
+  }
+
+  private isPredictionCorrect(
+    predictedDirection: 'UP' | 'DOWN' | 'SIDEWAYS',
+    actualDirection: 'UP' | 'DOWN' | 'SIDEWAYS',
+  ): boolean {
+    // Si predijo SIDEWAYS, solo es correcto si el mercado también fue SIDEWAYS
+    if (predictedDirection === 'SIDEWAYS') {
+      return actualDirection === 'SIDEWAYS';
+    }
+
+    // Si predijo UP/DOWN, debe coincidir exactamente con el resultado
+    return predictedDirection === actualDirection;
+  }
+
+  private calculateTradingSetup(
+    currentBlock: CandleAnalyser,
     prediction: any,
     capital: number,
     leverage: number,
@@ -524,42 +1283,52 @@ export class RetroactivePredictionController {
     const entryPrice =
       currentBlock.analysis[currentBlock.analysis.length - 1].close;
 
-    // Precio de salida: cierre del bloque siguiente (para verificar si la predicción fue correcta)
-    const exitPrice = nextBlock.analysis[nextBlock.analysis.length - 1].close;
+    // Calcular TAKE PROFIT y STOP LOSS mejorado (ANTES del trade)
+    const expectedMovePercent = prediction.expectedMove / 100; // Convertir a decimal
+    const takeProfitPercent = Math.min(expectedMovePercent * 1.2, 0.025); // 120% del movimiento esperado, max 2.5%
+    const stopLossPercent = 0.008; // 0.8% Stop Loss (aumentado de 0.5%)
 
-    // Determinar dirección de la operación
+    let takeProfitPrice = 0;
+    let stopLossPrice = 0;
     let positionSize = 0;
-    let pnl = 0;
 
     if (prediction.direction === 'UP') {
-      // Long position
+      // Long position - Take Profit hacia arriba, Stop Loss hacia abajo
+      takeProfitPrice = entryPrice * (1 + takeProfitPercent);
+      stopLossPrice = entryPrice * (1 - stopLossPercent);
       positionSize = (capital * leverage) / entryPrice;
-      pnl = (exitPrice - entryPrice) * positionSize;
     } else if (prediction.direction === 'DOWN') {
-      // Short position
+      // Short position - Take Profit hacia abajo, Stop Loss hacia arriba
+      takeProfitPrice = entryPrice * (1 - takeProfitPercent);
+      stopLossPrice = entryPrice * (1 + stopLossPercent);
       positionSize = (capital * leverage) / entryPrice;
-      pnl = (entryPrice - exitPrice) * positionSize;
     } else {
       // SIDEWAYS - no trade
       return {
         entryPrice,
-        exitPrice,
-        pnl: 0,
-        pnlPercent: 0,
+        takeProfitPrice: 0,
+        stopLossPrice: 0,
+        positionSize: 0,
         leverage,
         capital,
+        expectedMove: prediction.expectedMove,
+        takeProfitPercent: 0,
+        stopLossPercent: 0,
+        direction: 'SIDEWAYS',
       };
     }
 
-    const pnlPercent = (pnl / capital) * 100;
-
     return {
       entryPrice,
-      exitPrice,
-      pnl,
-      pnlPercent,
+      takeProfitPrice,
+      stopLossPrice,
+      positionSize,
       leverage,
       capital,
+      expectedMove: prediction.expectedMove,
+      takeProfitPercent: takeProfitPercent * 100,
+      stopLossPercent: stopLossPercent * 100,
+      direction: prediction.direction,
     };
   }
 
@@ -568,38 +1337,21 @@ export class RetroactivePredictionController {
     const correctPredictions = predictions.filter(
       (p) =>
         p.targetBlock.exists &&
-        p.prediction.direction === p.targetBlock.actualDirection,
+        this.isPredictionCorrect(
+          p.prediction.direction,
+          p.targetBlock.actualDirection,
+        ),
     ).length;
 
     const accuracy =
       totalPredictions > 0 ? (correctPredictions / totalPredictions) * 100 : 0;
 
     const trades = predictions.filter((p) => p.trading !== null);
-    const totalPnL = trades.reduce((sum, p) => sum + (p.trading?.pnl || 0), 0);
-    const totalPnLPercent = trades.reduce(
-      (sum, p) => sum + (p.trading?.pnlPercent || 0),
-      0,
-    );
+    const totalPnL = 0; // TODO: Calcular PnL real basado en verificación
+    const totalPnLPercent = 0; // TODO: Calcular PnL% real basado en verificación
 
-    const bestPrediction = predictions
-      .filter((p) => p.trading)
-      .reduce(
-        (best, current) =>
-          (current.trading?.pnl || 0) > (best.trading?.pnl || 0)
-            ? current
-            : best,
-        predictions.find((p) => p.trading) || null,
-      );
-
-    const worstPrediction = predictions
-      .filter((p) => p.trading)
-      .reduce(
-        (worst, current) =>
-          (current.trading?.pnl || 0) < (worst.trading?.pnl || 0)
-            ? current
-            : worst,
-        predictions.find((p) => p.trading) || null,
-      );
+    const bestPrediction = null; // TODO: Calcular basado en verificación real
+    const worstPrediction = null; // TODO: Calcular basado en verificación real
 
     return {
       totalPredictions,
