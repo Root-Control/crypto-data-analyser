@@ -179,6 +179,8 @@ export class RetroactivePredictionController {
   async predict(
     @Query('pair') pair = 'ETHUSDT',
     @Query('showResults') showResults?: string,
+    @Query('capital') capital: any = 400,
+    @Query('leverage') leverage: any = 10,
   ) {
     try {
       this.logger.log(`🔮 Iniciando predicciones para ${pair}`);
@@ -197,6 +199,10 @@ export class RetroactivePredictionController {
 
       this.logger.log(`📊 Bloques sanitizados: ${sanitizedBlocks.length}`);
 
+      // Normalizar parámetros numéricos
+      const capitalNum = Number(capital);
+      const leverageNum = Number(leverage);
+
       // PASO 2: ITERAR todos los items sanitizados para generar predicciones
       const predictions = [];
       for (let i = 0; i < sanitizedBlocks.length; i++) {
@@ -207,6 +213,8 @@ export class RetroactivePredictionController {
         const prediction = await this.predictForHistoricalBlocks(
           historicalBlocks,
           i,
+          capitalNum,
+          leverageNum,
         );
 
         // PASO 5: Atachar predicción al item actual
@@ -298,7 +306,17 @@ export class RetroactivePredictionController {
 
           const p1 = algoritmo1(histCandlesA as any, currentBookA as any, 3);
           if (p1 && p1.direction !== 'SIDEWAYS') {
-            const e1 = getResults(p1 as any, nextBlock as any);
+            const trade1 = this.calculateTradingSetup(
+              currentBlock,
+              p1 as any,
+              capitalNum,
+              leverageNum,
+            );
+            const p1WithTrading = {
+              direction: p1.direction,
+              trading: trade1,
+            } as any;
+            const e1 = getResults(p1WithTrading as any, nextBlock as any);
             if (e1.exists) {
               a1Evaluated++;
               if (e1.actualDirection === p1.direction) a1Correct++;
@@ -309,7 +327,17 @@ export class RetroactivePredictionController {
 
           const p2 = algoritmo2(histCandlesA as any, currentBookA as any, 3);
           if (p2 && p2.direction !== 'SIDEWAYS') {
-            const e2 = getResults(p2 as any, nextBlock as any);
+            const trade2 = this.calculateTradingSetup(
+              currentBlock,
+              p2 as any,
+              capitalNum,
+              leverageNum,
+            );
+            const p2WithTrading = {
+              direction: p2.direction,
+              trading: trade2,
+            } as any;
+            const e2 = getResults(p2WithTrading as any, nextBlock as any);
             if (e2.exists) {
               a2Evaluated++;
               if (e2.actualDirection === p2.direction) a2Correct++;
@@ -399,12 +427,7 @@ export class RetroactivePredictionController {
           predictionsGenerated: results.filter(
             (r) => r.predictionForNextMinute !== null,
           ).length,
-          resultsEvaluated: validResults.length,
-          correctPredictions,
-          accuracy: Math.round(accuracy * 100) / 100,
-          totalPnL: Math.round(totalPnL * 100) / 100,
-          totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
-          // Resumen dentro de data solo de algoritmo3
+          // Solo desglose por algoritmo
           algorithms: {
             algoritmo1: {
               resultsEvaluated: a1Evaluated,
@@ -946,6 +969,8 @@ export class RetroactivePredictionController {
   private async predictForHistoricalBlocks(
     historicalBlocks: CandleAnalyser[],
     currentIndex: number,
+    capital = 400,
+    leverage = 10,
   ): Promise<any> {
     try {
       // REGLA: Si array length <= 2, return null (no hay suficientes datos)
@@ -979,11 +1004,11 @@ export class RetroactivePredictionController {
       if (prediction.direction === 'UP') {
         takeProfitPrice = entryPrice * (1 + takeProfitPercent);
         stopLossPrice = entryPrice * (1 - stopLossPercent);
-        positionSize = (400 * 10) / entryPrice; // Capital fijo: $400, leverage: 10x
+        positionSize = (capital * leverage) / entryPrice;
       } else if (prediction.direction === 'DOWN') {
         takeProfitPrice = entryPrice * (1 - takeProfitPercent);
         stopLossPrice = entryPrice * (1 + stopLossPercent);
-        positionSize = (400 * 10) / entryPrice; // Capital fijo: $400, leverage: 10x
+        positionSize = (capital * leverage) / entryPrice;
       }
 
       return {
@@ -998,8 +1023,8 @@ export class RetroactivePredictionController {
           positionSize: Math.round(positionSize * 10000) / 10000,
           takeProfitPercent: Math.round(takeProfitPercent * 10000) / 100,
           stopLossPercent: Math.round(stopLossPercent * 10000) / 100,
-          capital: 400,
-          leverage: 10,
+          capital,
+          leverage,
         },
         analysis: {
           momentumScore:
