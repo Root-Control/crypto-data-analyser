@@ -83,13 +83,12 @@ export class AnalyserService implements OnModuleInit {
   onModuleInit() {
     this.logger.log('🚀 Initializing Analyser Service...');
     this.logger.log(
-      '📊 Analizando velas de 1 minuto con orden intra-minuto - ETHUSDT Futures',
+      '📊 Analyser Service initialized (data collection DISABLED)',
     );
-    this.logger.log(
-      `   PrevClose: ${this.PRINT_PREV_CLOSE ? 'ON' : 'OFF'} | Times: ${this.PRINT_TIMES ? 'ON' : 'OFF'}`,
-    );
-    this.connectToKlineWebSocket();
-    this.connectToTradesWebSocket();
+    this.logger.log('   - Minute data saving: DISABLED');
+    this.logger.log('   - Book data saving: DISABLED');
+    // this.connectToKlineWebSocket();
+    // this.connectToTradesWebSocket();
   }
 
   private connectToKlineWebSocket() {
@@ -322,10 +321,10 @@ export class AnalyserService implements OnModuleInit {
       this.currentCycleStartTime = `${hours}:${minutes}`;
     }
 
-    // v8.1: Guardar en BD con motor serializado
-    if (this.currentCycleStartTime) {
-      await this.saveMinuteToDB(metrics, st);
-    }
+    // v8.1: Guardar en BD con motor serializado - DISABLED
+    // if (this.currentCycleStartTime) {
+    //   await this.saveMinuteToDB(metrics, st);
+    // }
 
     // Resetear estado
     this.currentMinuteState = null;
@@ -346,13 +345,13 @@ export class AnalyserService implements OnModuleInit {
         st.prevClosePx, // para prevClose
       );
 
-      // 📖 Obtener snapshot del order book desde Redis
-      const bookSnapshot = await this.bookService.getLatestSnapshot();
+      // 📖 Obtener snapshot del order book desde Redis - DISABLED
+      // const bookSnapshot = await this.bookService.getLatestSnapshot();
 
-      // Agregar book snapshot al análisis del minuto
+      // Agregar book snapshot al análisis del minuto - DISABLED
       const analysisWithBook = {
         ...minuteAnalysis,
-        book: bookSnapshot || null, // null si no hay snapshot disponible
+        // book: bookSnapshot || null, // null si no hay snapshot disponible
       };
 
       // Buscar o crear documento
