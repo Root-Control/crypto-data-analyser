@@ -10,6 +10,8 @@ import {
   type HistoricalCandle,
   type ResultEvaluation,
 } from '../../../helpers/predictionEngine';
+import { algoritmo1 } from '../../../algorithms/algoritmo1';
+import { algoritmo2 } from '../../../algorithms/algoritmo2';
 import { algoritmo3 } from '../../../algorithms/algoritmo3';
 
 interface ValidationResult {
@@ -237,8 +239,18 @@ export class RetroactivePredictionController {
 
       // PASO 6: TERCER STAGE - Evaluar resultados
       const results = [];
+      let a1Evaluated = 0,
+        a1Correct = 0,
+        a1PnL = 0,
+        a1PnLPct = 0;
+      let a2Evaluated = 0,
+        a2Correct = 0,
+        a2PnL = 0,
+        a2PnLPct = 0;
       let a3Evaluated = 0,
-        a3Correct = 0;
+        a3Correct = 0,
+        a3PnL = 0,
+        a3PnLPct = 0;
       for (let i = 0; i < predictions.length; i++) {
         const prediction = predictions[i];
         const currentBlock = sanitizedBlocks[i];
@@ -271,6 +283,40 @@ export class RetroactivePredictionController {
             prediction.predictionForNextMinute.direction
           )
             a3Correct++;
+          a3PnL += resultEvaluation.pnl || 0;
+          a3PnLPct += resultEvaluation.pnlPercent || 0;
+        }
+
+        // Evaluar algoritmo1 y algoritmo2 en paralelo (solo resumen)
+        if (nextBlock && currentBlock) {
+          const historicalBlocksA = sanitizedBlocks.slice(0, i + 1);
+          const histCandlesA =
+            this.convertBlocksToHistoricalCandles(historicalBlocksA);
+          const currentBookA =
+            currentBlock.analysis[currentBlock.analysis.length - 1]?.book ||
+            null;
+
+          const p1 = algoritmo1(histCandlesA as any, currentBookA as any, 3);
+          if (p1 && p1.direction !== 'SIDEWAYS') {
+            const e1 = getResults(p1 as any, nextBlock as any);
+            if (e1.exists) {
+              a1Evaluated++;
+              if (e1.actualDirection === p1.direction) a1Correct++;
+              a1PnL += e1.pnl || 0;
+              a1PnLPct += e1.pnlPercent || 0;
+            }
+          }
+
+          const p2 = algoritmo2(histCandlesA as any, currentBookA as any, 3);
+          if (p2 && p2.direction !== 'SIDEWAYS') {
+            const e2 = getResults(p2 as any, nextBlock as any);
+            if (e2.exists) {
+              a2Evaluated++;
+              if (e2.actualDirection === p2.direction) a2Correct++;
+              a2PnL += e2.pnl || 0;
+              a2PnLPct += e2.pnlPercent || 0;
+            }
+          }
         }
 
         // Solo algoritmo3
@@ -360,6 +406,26 @@ export class RetroactivePredictionController {
           totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
           // Resumen dentro de data solo de algoritmo3
           algorithms: {
+            algoritmo1: {
+              resultsEvaluated: a1Evaluated,
+              correctPredictions: a1Correct,
+              accuracy:
+                a1Evaluated > 0
+                  ? Math.round((a1Correct / a1Evaluated) * 100 * 100) / 100
+                  : 0,
+              totalPnL: Math.round(a1PnL * 100) / 100,
+              totalPnLPercent: Math.round(a1PnLPct * 100) / 100,
+            },
+            algoritmo2: {
+              resultsEvaluated: a2Evaluated,
+              correctPredictions: a2Correct,
+              accuracy:
+                a2Evaluated > 0
+                  ? Math.round((a2Correct / a2Evaluated) * 100 * 100) / 100
+                  : 0,
+              totalPnL: Math.round(a2PnL * 100) / 100,
+              totalPnLPercent: Math.round(a2PnLPct * 100) / 100,
+            },
             algoritmo3: {
               resultsEvaluated: a3Evaluated,
               correctPredictions: a3Correct,
@@ -367,22 +433,12 @@ export class RetroactivePredictionController {
                 a3Evaluated > 0
                   ? Math.round((a3Correct / a3Evaluated) * 100 * 100) / 100
                   : 0,
+              totalPnL: Math.round(a3PnL * 100) / 100,
+              totalPnLPercent: Math.round(a3PnLPct * 100) / 100,
             },
           },
         },
         results: results,
-      };
-
-      // Adjuntar resumen solo de algoritmo3 a nivel top-level
-      response.algorithms = {
-        algoritmo3: {
-          resultsEvaluated: a3Evaluated,
-          correctPredictions: a3Correct,
-          accuracy:
-            a3Evaluated > 0
-              ? Math.round((a3Correct / a3Evaluated) * 100 * 100) / 100
-              : 0,
-        },
       };
 
       // Ocultar resultados si showResults indica falso
@@ -398,10 +454,10 @@ export class RetroactivePredictionController {
       // Log de depuración: presencia de algorithms y sus métricas
       try {
         this.logger.log(
-          `🧪 Algorithms summary → a3: ${a3Correct}/${a3Evaluated}`,
+          `🧪 Alg1 ${a1Correct}/${a1Evaluated} PnL=${a1PnL.toFixed(2)} | Alg2 ${a2Correct}/${a2Evaluated} PnL=${a2PnL.toFixed(2)} | Alg3 ${a3Correct}/${a3Evaluated} PnL=${a3PnL.toFixed(2)}`,
         );
         this.logger.log(
-          `🧪 response.algorithms present: ${'algorithms' in response}`,
+          `🧪 data.algorithms present: ${'algorithms' in response.data}`,
         );
         this.logger.log(
           `🧪 showResults param: ${showResults} → hideResults=${hideResults}`,
