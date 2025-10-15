@@ -202,7 +202,6 @@ export class RetroactivePredictionController {
         `🔮 Iniciando predicciones para ${pair} con algoritmo: ${algorithm}`,
       );
 
-
       // PASO 1: Obtener datos sanitizados
       const allBlocks = await this.getAllBlocksSorted(pair);
       const sanitizedBlocks = await this.getLongestSequence(allBlocks);
@@ -303,7 +302,6 @@ export class RetroactivePredictionController {
       const a2Predictions: any[] = [];
       const a3Predictions: any[] = [];
       const a4Predictions: any[] = [];
-
 
       for (let i = 0; i < predictions.length; i++) {
         const prediction = predictions[i];
@@ -481,7 +479,6 @@ export class RetroactivePredictionController {
               result: result2,
             });
           }
-
 
           // Algoritmo 4: Sideway Prediction
           if (algorithm === 'all' || algorithm === 'sideway') {
@@ -1582,7 +1579,6 @@ export class RetroactivePredictionController {
           predictions: data.a2Predictions || [],
         };
       }
-
 
       if (algorithm === 'all' || algorithm === 'sideway') {
         algorithms.sidewayPrediction = {
