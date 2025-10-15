@@ -5,7 +5,7 @@
   "author": "",
   "license": "ISC",
   "scripts": {
-    "production": "npm run build && pm2 delete crypto-analyser 2>/dev/null || true && TEST_MODE=false PORT=4000 pm2 start dist/src/main.js --name crypto-analyser",
+    "production": "npm run build && pm2 delete crypto-analyser 2>/dev/null || true && PORT=4020 pm2 start dist/main.js --name crypto-analyser",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
