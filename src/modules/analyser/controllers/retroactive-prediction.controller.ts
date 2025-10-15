@@ -11,7 +11,6 @@ import {
 } from '../../../helpers/predictionEngine';
 import { basicPrediction } from '../../../algorithms/basic-prediction';
 import { refinedPrediction } from '../../../algorithms/refined-prediction';
-import { refined2PredictionCompat } from '../../../algorithms/refined2.0-prediction';
 import { softRefined } from '../../../algorithms/soft-refined-prediction';
 import { sidewayPrediction } from '../../../algorithms/sideway-prediction';
 
@@ -189,7 +188,6 @@ export class RetroactivePredictionController {
         'all',
         'basic',
         'refined',
-        'refined2.0',
         'sideway',
         'soft-refined',
       ];
@@ -203,6 +201,7 @@ export class RetroactivePredictionController {
       this.logger.log(
         `🔮 Iniciando predicciones para ${pair} con algoritmo: ${algorithm}`,
       );
+
 
       // PASO 1: Obtener datos sanitizados
       const allBlocks = await this.getAllBlocksSorted(pair);
@@ -290,10 +289,6 @@ export class RetroactivePredictionController {
         a2Correct = 0,
         a2PnL = 0,
         a2PnLPct = 0;
-      let a2_0Evaluated = 0,
-        a2_0Correct = 0,
-        a2_0PnL = 0,
-        a2_0PnLPct = 0;
       let a3Evaluated = 0,
         a3Correct = 0,
         a3PnL = 0,
@@ -306,19 +301,10 @@ export class RetroactivePredictionController {
       // Arrays para almacenar predicciones de cada algoritmo
       const a1Predictions: any[] = [];
       const a2Predictions: any[] = [];
-      const a2_0Predictions: any[] = [];
       const a3Predictions: any[] = [];
       const a4Predictions: any[] = [];
-      
-      // Debug: verificar qué contiene predictions
-      console.log(`🔍 Controller: predictions type: ${typeof predictions}, length: ${predictions?.length || 'undefined'}`);
-      console.log(`🔍 Controller: predictions content:`, predictions);
-      
-      // Sideway predictions
-      console.log(`🔍 Controller: Starting prediction loop with ${predictions.length} predictions, algorithm: ${algorithm}`);
-      console.log(`🔍 Controller: sanitizedBlocks.length: ${sanitizedBlocks.length}`);
-      console.log(`🔍 Controller: results.length: ${results.length}`);
-      
+
+
       for (let i = 0; i < predictions.length; i++) {
         const prediction = predictions[i];
         const currentBlock = sanitizedBlocks[i];
@@ -496,56 +482,6 @@ export class RetroactivePredictionController {
             });
           }
 
-          // Algoritmo 2.0: Refined 2.0 Prediction
-          if (algorithm === 'all' || algorithm === 'refined2.0') {
-            console.log(`🔍 Controller: Calling refined2PredictionCompat with ${histCandlesA.length} candles`);
-            const p2_0 = refined2PredictionCompat(
-              histCandlesA as any,
-              currentBookA as any,
-              3,
-            );
-            console.log(`🔍 Controller: refined2PredictionCompat returned: ${p2_0.direction}`);
-
-            let trade2_0 = null;
-            let result2_0 = null;
-
-            if (p2_0 && p2_0.direction !== 'SIDEWAYS') {
-              trade2_0 = this.calculateTradingSetup(
-                currentBlock,
-                p2_0 as any,
-                capitalNum,
-                leverageNum,
-              );
-              const p2_0WithTrading = {
-                direction: p2_0.direction,
-                trading: trade2_0,
-              } as any;
-              result2_0 = getResults(p2_0WithTrading as any, nextBlock as any);
-              if (result2_0.exists) {
-                a2_0Evaluated++;
-                if (result2_0.actualDirection === p2_0.direction) a2_0Correct++;
-                a2_0PnL += result2_0.pnl || 0;
-                a2_0PnLPct += result2_0.pnlPercent || 0;
-              }
-            }
-
-            const p2_0ConfidenceDetails = this.calculateConfidenceDetails(
-              p2_0.confidence,
-            );
-            a2_0Predictions.push({
-              blockId: `${currentBlock.startDate}_${currentBlock.startTime}`,
-              direction: p2_0.direction,
-              confidence: p2_0.confidence,
-              confidencePercentage: p2_0ConfidenceDetails.confidencePercentage,
-              confidenceLevel: p2_0ConfidenceDetails.confidenceLevel,
-              confidenceColor: p2_0ConfidenceDetails.confidenceColor,
-              expectedMove: p2_0.expectedMove,
-              riskLevel: p2_0.riskLevel,
-              analysis: p2_0.breakdown,
-              trading: trade2_0,
-              result: result2_0,
-            });
-          }
 
           // Algoritmo 4: Sideway Prediction
           if (algorithm === 'all' || algorithm === 'sideway') {
@@ -689,11 +625,6 @@ export class RetroactivePredictionController {
             a2PnL,
             a2PnLPct,
             a2Predictions,
-            a2_0Evaluated,
-            a2_0Correct,
-            a2_0PnL,
-            a2_0PnLPct,
-            a2_0Predictions,
             a3Evaluated,
             a3Correct,
             a3PnL,
@@ -721,7 +652,7 @@ export class RetroactivePredictionController {
       // Log de depuración: presencia de algorithms y sus métricas
       try {
         this.logger.log(
-          `🧪 Alg1 ${a1Correct}/${a1Evaluated} PnL=${a1PnL.toFixed(2)} | Alg2 ${a2Correct}/${a2Evaluated} PnL=${a2PnL.toFixed(2)} | Alg2.0 ${a2_0Correct}/${a2_0Evaluated} PnL=${a2_0PnL.toFixed(2)} | Alg3 ${a3Correct}/${a3Evaluated} PnL=${a3PnL.toFixed(2)} | Sideway ${a4Correct}/${a4Evaluated} PnL=${a4PnL.toFixed(2)}`,
+          `🧪 Alg1 ${a1Correct}/${a1Evaluated} PnL=${a1PnL.toFixed(2)} | Alg2 ${a2Correct}/${a2Evaluated} PnL=${a2PnL.toFixed(2)} | Alg3 ${a3Correct}/${a3Evaluated} PnL=${a3PnL.toFixed(2)} | Sideway ${a4Correct}/${a4Evaluated} PnL=${a4PnL.toFixed(2)}`,
         );
         this.logger.log(
           `🧪 data.algorithms present: ${'algorithms' in response.data}`,
@@ -1652,20 +1583,6 @@ export class RetroactivePredictionController {
         };
       }
 
-      if (algorithm === 'all' || algorithm === 'refined2.0') {
-        algorithms.refined2Prediction = {
-          resultsEvaluated: data.a2_0Evaluated || 0,
-          correctPredictions: data.a2_0Correct || 0,
-          accuracy:
-            data.a2_0Evaluated > 0
-              ? Math.round((data.a2_0Correct / data.a2_0Evaluated) * 100 * 100) /
-                100
-              : 0,
-          totalPnL: Math.round((data.a2_0PnL || 0) * 100) / 100,
-          totalPnLPercent: Math.round((data.a2_0PnLPct || 0) * 100) / 100,
-          predictions: data.a2_0Predictions || [],
-        };
-      }
 
       if (algorithm === 'all' || algorithm === 'sideway') {
         algorithms.sidewayPrediction = {
