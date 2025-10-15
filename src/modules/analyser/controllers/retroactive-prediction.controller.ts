@@ -528,7 +528,6 @@ export class RetroactivePredictionController {
               result: result4,
             });
           }
-
         }
 
         // Solo algoritmo3
@@ -1595,7 +1594,6 @@ export class RetroactivePredictionController {
           predictions: data.a4Predictions || [],
         };
       }
-
 
       return algorithms;
     } catch (error) {
