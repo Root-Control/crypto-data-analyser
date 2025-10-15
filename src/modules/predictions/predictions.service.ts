@@ -8,6 +8,7 @@ import { refinedPrediction } from '../../algorithms/refined-prediction';
 import { HistoricalCandle } from '../../helpers/predictionEngine';
 import { BinanceService } from '../../third-party-services/binance/binance.service';
 import { softRefined } from '../../algorithms';
+import { sidewayPrediction } from '../../algorithms/sideway-prediction';
 
 @Injectable()
 export class PredictionsService implements OnModuleInit {
@@ -288,19 +289,30 @@ export class PredictionsService implements OnModuleInit {
       this.logger.log('🎯 Making prediction2 with soft-refined algorithm...');
       const prediction2 = softRefined(allCandles, currentBook, 3);
 
-      // 8. Calcular setup de trading para ambas predicciones
+      // 7.2. Hacer predicción3 usando sideway algorithm
+      this.logger.log('🎯 Making prediction3 with sideway algorithm...');
+      const prediction3 = sidewayPrediction(allCandles, currentBook, 3);
+
+      // 8. Calcular setup de trading para las tres predicciones
       const tradingSetup = this.calculateTradingSetup(
         newCandle,
         prediction,
-        15, // Capital fijo
-        10, // Leverage fijo
+        21, // Capital fijo
+        1, // Leverage fijo
       );
 
       const tradingSetup2 = this.calculateTradingSetup(
         newCandle,
         prediction2,
-        15, // Capital fijo
-        10, // Leverage fijo
+        21, // Capital fijo
+        1, // Leverage fijo
+      );
+
+      const tradingSetup3 = this.calculateTradingSetup(
+        newCandle,
+        prediction3,
+        21, // Capital fijo
+        1, // Leverage fijo
       );
 
       // 9. Loggear resultados de ambas predicciones
@@ -315,6 +327,12 @@ export class PredictionsService implements OnModuleInit {
       this.logger.log(`   Confidence: ${prediction2.confidence}`);
       this.logger.log(`   Risk Level: ${prediction2.riskLevel}`);
       this.logger.log(`   Expected Move: ${prediction2.expectedMove}%`);
+
+      this.logger.log('📈 PREDICTION 3 (Sideway Algorithm):');
+      this.logger.log(`   Direction: ${prediction3.direction}`);
+      this.logger.log(`   Confidence: ${prediction3.confidence}`);
+      this.logger.log(`   Risk Level: ${prediction3.riskLevel}`);
+      this.logger.log(`   Expected Move: ${prediction3.expectedMove}%`);
 
       // Análisis de convergencia entre predicciones
       const directionMatch = prediction.direction === prediction2.direction;
@@ -367,11 +385,14 @@ export class PredictionsService implements OnModuleInit {
 
         if (tradeResult1.success) {
           this.logger.log(
-            `✅ Trade 1 executed successfully! Order ID: ${tradeResult1.orderId}`,
+            `✅ Trade 1 order placed successfully! Order ID: ${tradeResult1.orderId}`,
+          );
+          this.logger.log(
+            `   Status: PENDING - Will execute when price reaches entry level`,
           );
         } else {
           this.logger.warn(
-            `⚠️ Trade 1 execution failed: ${tradeResult1.message}`,
+            `⚠️ Trade 1 order placement failed: ${tradeResult1.message}`,
           );
         }
       } else {
@@ -406,15 +427,60 @@ export class PredictionsService implements OnModuleInit {
 
         if (tradeResult2.success) {
           this.logger.log(
-            `✅ Trade 2 executed successfully! Order ID: ${tradeResult2.orderId}`,
+            `✅ Trade 2 order placed successfully! Order ID: ${tradeResult2.orderId}`,
+          );
+          this.logger.log(
+            `   Status: PENDING - Will execute when price reaches entry level`,
           );
         } else {
           this.logger.warn(
-            `⚠️ Trade 2 execution failed: ${tradeResult2.message}`,
+            `⚠️ Trade 2 order placement failed: ${tradeResult2.message}`,
           );
         }
       } else {
         this.logger.log('🚫 NO TRADE 2 - SIDEWAYS signal from prediction 2');
+      }
+
+      // Trade para Predicción 3 (Sideway)
+      if (tradingSetup3.direction !== 'SIDEWAYS') {
+        this.logger.log('💰 TRADING SETUP 3 (Sideway):');
+        this.logger.log(
+          `   Entry Price: $${tradingSetup3.entryPrice.toFixed(2)}`,
+        );
+        this.logger.log(
+          `   Take Profit: $${tradingSetup3.takeProfitPrice.toFixed(2)} (${tradingSetup3.takeProfitPercent.toFixed(2)}%)`,
+        );
+        this.logger.log(
+          `   Stop Loss: $${tradingSetup3.stopLossPrice.toFixed(2)} (${tradingSetup3.stopLossPercent.toFixed(2)}%)`,
+        );
+        this.logger.log(
+          `   Position Size: ${tradingSetup3.positionSize.toFixed(4)} ETH`,
+        );
+        this.logger.log(
+          `   Capital: $${tradingSetup3.capital} | Leverage: ${tradingSetup3.leverage}x`,
+        );
+
+        // Ejecutar trade 3
+        this.logger.log('🤖 Executing trade 3 (Sideway)...');
+        const tradeResult3 = await this.binanceService.executeTrade({
+          ...tradingSetup3,
+          symbol: this.PAIR,
+        });
+
+        if (tradeResult3.success) {
+          this.logger.log(
+            `✅ Trade 3 order placed successfully! Order ID: ${tradeResult3.orderId}`,
+          );
+          this.logger.log(
+            `   Status: PENDING - Will execute when price reaches entry level`,
+          );
+        } else {
+          this.logger.warn(
+            `⚠️ Trade 3 order placement failed: ${tradeResult3.message}`,
+          );
+        }
+      } else {
+        this.logger.log('🚫 NO TRADE 3 - SIDEWAYS signal from prediction 3');
       }
 
       if (prediction.analysis) {
@@ -423,6 +489,10 @@ export class PredictionsService implements OnModuleInit {
 
       if (prediction2.breakdown) {
         this.logger.log(`   Prediction 2 Breakdown:`, prediction2.breakdown);
+      }
+
+      if (prediction3.breakdown) {
+        this.logger.log(`   Prediction 3 Breakdown:`, prediction3.breakdown);
       }
 
       // 9. Actualizar Redis con la nueva vela
@@ -448,6 +518,14 @@ export class PredictionsService implements OnModuleInit {
           expectedMove: prediction2.expectedMove,
           riskLevel: prediction2.riskLevel,
           breakdown: prediction2.breakdown,
+        },
+        lastPrediction3: {
+          timestamp: new Date().toISOString(),
+          direction: prediction3.direction,
+          confidence: prediction3.confidence,
+          expectedMove: prediction3.expectedMove,
+          riskLevel: prediction3.riskLevel,
+          breakdown: prediction3.breakdown,
         },
         predictionAnalysis: {
           directionMatch,
@@ -477,6 +555,18 @@ export class PredictionsService implements OnModuleInit {
           stopLossPercent: tradingSetup2.stopLossPercent,
           direction: tradingSetup2.direction,
           algorithm: 'soft-refined',
+        },
+        lastTrading3: {
+          entryPrice: tradingSetup3.entryPrice,
+          takeProfitPrice: tradingSetup3.takeProfitPrice,
+          stopLossPrice: tradingSetup3.stopLossPrice,
+          positionSize: tradingSetup3.positionSize,
+          leverage: tradingSetup3.leverage,
+          capital: tradingSetup3.capital,
+          takeProfitPercent: tradingSetup3.takeProfitPercent,
+          stopLossPercent: tradingSetup3.stopLossPercent,
+          direction: tradingSetup3.direction,
+          algorithm: 'sideway',
         },
       };
 

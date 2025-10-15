@@ -75,12 +75,13 @@ export class BinanceService {
       // 1. Configurar leverage
       await this.setLeverage(symbol, tradingSetup.leverage);
 
-      // 2. Ejecutar orden principal
+      // 2. Ejecutar orden principal (LIMIT en lugar de MARKET)
       const mainOrder = await this.placeOrder({
         symbol,
         side: tradingSetup.direction === 'UP' ? 'BUY' : 'SELL',
-        type: 'MARKET',
+        type: 'LIMIT',
         quantity: tradingSetup.positionSize.toFixed(4),
+        price: tradingSetup.entryPrice.toFixed(2),
       });
 
       if (!mainOrder.success) {
@@ -91,26 +92,26 @@ export class BinanceService {
         };
       }
 
-      // 3. Colocar Take Profit (OCO Order)
-      const tpOrder = await this.placeOCOOrder({
-        symbol,
-        side: tradingSetup.direction === 'UP' ? 'SELL' : 'BUY',
-        quantity: tradingSetup.positionSize.toFixed(4),
-        price: tradingSetup.takeProfitPrice.toFixed(2),
-        stopPrice: tradingSetup.stopLossPrice.toFixed(2),
-        stopLimitPrice: tradingSetup.stopLossPrice.toFixed(2),
-      });
-
-      this.logger.log(`✅ Trade executed successfully`);
-      this.logger.log(`   Main Order ID: ${mainOrder.orderId}`);
-      if (tpOrder.success) {
-        this.logger.log(`   OCO Order ID: ${tpOrder.orderId}`);
-      }
+      this.logger.log(`✅ Order placed successfully`);
+      this.logger.log(`   Order ID: ${mainOrder.orderId}`);
+      this.logger.log(`   Price: $${tradingSetup.entryPrice.toFixed(2)}`);
+      this.logger.log(
+        `   Quantity: ${tradingSetup.positionSize.toFixed(4)} ETH`,
+      );
+      this.logger.log(
+        `   Status: PENDING (will execute when price reaches entry level)`,
+      );
+      this.logger.log(
+        `   Take Profit: $${tradingSetup.takeProfitPrice.toFixed(2)} (place manually after fill)`,
+      );
+      this.logger.log(
+        `   Stop Loss: $${tradingSetup.stopLossPrice.toFixed(2)} (place manually after fill)`,
+      );
 
       return {
         success: true,
         orderId: mainOrder.orderId,
-        message: `${tradingSetup.direction} trade executed successfully`,
+        message: `${tradingSetup.direction} order placed successfully (PENDING)`,
       };
     } catch (error) {
       this.logger.error(`❌ Error executing trade:`, error);
@@ -152,17 +153,18 @@ export class BinanceService {
   }
 
   /**
-   * Coloca una orden de mercado
+   * Coloca una orden limitada
    */
   private async placeOrder(params: {
     symbol: string;
     side: 'BUY' | 'SELL';
-    type: 'MARKET';
+    type: 'LIMIT';
     quantity: string;
+    price: string;
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
     try {
       const timestamp = Date.now();
-      const queryString = `symbol=${params.symbol}&side=${params.side}&type=${params.type}&quantity=${params.quantity}&timestamp=${timestamp}`;
+      const queryString = `symbol=${params.symbol}&side=${params.side}&type=${params.type}&quantity=${params.quantity}&price=${params.price}&timeInForce=GTC&timestamp=${timestamp}`;
       const signature = this.createSignature(queryString);
 
       const response = await fetch(
@@ -256,6 +258,213 @@ export class BinanceService {
       .createHmac('sha256', this.apiSecret)
       .update(queryString)
       .digest('hex');
+  }
+
+  /**
+   * Verifica el estado de una orden
+   */
+  async checkOrderStatus(
+    symbol: string,
+    orderId: string,
+  ): Promise<{
+    success: boolean;
+    status?: string;
+    executedQty?: string;
+    avgPrice?: string;
+    error?: string;
+  }> {
+    try {
+      const timestamp = Date.now();
+      const queryString = `symbol=${symbol}&orderId=${orderId}&timestamp=${timestamp}`;
+      const signature = this.createSignature(queryString);
+
+      const response = await fetch(
+        `${this.baseUrl}/fapi/v1/order?${queryString}&signature=${signature}`,
+        {
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+          },
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.msg || 'Unknown error',
+        };
+      }
+
+      return {
+        success: true,
+        status: result.status,
+        executedQty: result.executedQty,
+        avgPrice: result.avgPrice,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Obtiene las posiciones abiertas
+   */
+  async getOpenPositions(): Promise<{
+    success: boolean;
+    positions?: any[];
+    error?: string;
+  }> {
+    try {
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      const signature = this.createSignature(queryString);
+
+      const response = await fetch(
+        `${this.baseUrl}/fapi/v2/positionRisk?${queryString}&signature=${signature}`,
+        {
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+          },
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.msg || 'Unknown error',
+        };
+      }
+
+      // Filtrar solo posiciones con cantidad > 0
+      const openPositions = result.filter(
+        (pos: any) => parseFloat(pos.positionAmt) !== 0,
+      );
+
+      return {
+        success: true,
+        positions: openPositions,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Coloca Take Profit y Stop Loss después de que se ejecute la orden principal
+   */
+  async placeTPandSL(params: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: string;
+    takeProfitPrice: string;
+    stopLossPrice: string;
+  }): Promise<{
+    success: boolean;
+    tpOrderId?: string;
+    slOrderId?: string;
+    error?: string;
+  }> {
+    try {
+      this.logger.log(`📝 Placing TP/SL for filled position...`);
+
+      // Take Profit (orden limitada)
+      const tpOrder = await this.placeOrder({
+        symbol: params.symbol,
+        side: params.side,
+        type: 'LIMIT',
+        quantity: params.quantity,
+        price: params.takeProfitPrice,
+      });
+
+      if (!tpOrder.success) {
+        this.logger.warn(`⚠️ Failed to place Take Profit: ${tpOrder.error}`);
+      }
+
+      // Stop Loss (orden stop market)
+      const slOrder = await this.placeStopOrder({
+        symbol: params.symbol,
+        side: params.side,
+        quantity: params.quantity,
+        stopPrice: params.stopLossPrice,
+      });
+
+      if (!slOrder.success) {
+        this.logger.warn(`⚠️ Failed to place Stop Loss: ${slOrder.error}`);
+      }
+
+      if (tpOrder.success && slOrder.success) {
+        this.logger.log(`✅ TP/SL placed successfully`);
+        this.logger.log(`   TP Order ID: ${tpOrder.orderId}`);
+        this.logger.log(`   SL Order ID: ${slOrder.orderId}`);
+      }
+
+      return {
+        success: tpOrder.success && slOrder.success,
+        tpOrderId: tpOrder.orderId,
+        slOrderId: slOrder.orderId,
+        error: !tpOrder.success ? tpOrder.error : slOrder.error,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Coloca una orden stop market
+   */
+  private async placeStopOrder(params: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: string;
+    stopPrice: string;
+  }): Promise<{ success: boolean; orderId?: string; error?: string }> {
+    try {
+      const timestamp = Date.now();
+      const queryString = `symbol=${params.symbol}&side=${params.side}&type=STOP_MARKET&quantity=${params.quantity}&stopPrice=${params.stopPrice}&timestamp=${timestamp}`;
+      const signature = this.createSignature(queryString);
+
+      const response = await fetch(
+        `${this.baseUrl}/fapi/v1/order?${queryString}&signature=${signature}`,
+        {
+          method: 'POST',
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.msg || 'Unknown error',
+        };
+      }
+
+      return {
+        success: true,
+        orderId: result.orderId?.toString(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
   }
 
   /**

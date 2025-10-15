@@ -33,13 +33,10 @@ export function sidewayPrediction(
 
   if (dataQuality < 40) {
     adaptationMode = 'ULTRA_CONSERVATIVE';
-    console.log('⚠️ MODO ULTRA CONSERVADOR - Pocos datos:', dataQuality);
   } else if (dataQuality < 60) {
     adaptationMode = 'CONSERVATIVE';
-    console.log('⚠️ MODO CONSERVADOR - Datos moderados:', dataQuality);
   } else {
     adaptationMode = 'NORMAL';
-    console.log('✅ MODO NORMAL - Muchos datos:', dataQuality);
   }
 
   // FASE 1: Análisis de Rango Lateral
@@ -736,22 +733,6 @@ function calculateSidewayStrategy(
 
   // Estrategias específicas de trading en rangos
   if (rangeAnalysis.isInRange) {
-    // DEBUG: Log de condiciones para análisis
-    console.log('🔍 SIDEWAY DEBUG:', {
-      distanceToSupport: supportResistance.distanceToSupport,
-      supportStrength: supportResistance.supportStrength,
-      pricePosition,
-      microTrend: microMovementAnalysis.microTrend,
-      bidAskRatio: imbalanceAnalysis.bidAskRatio,
-      volumeSpike: microMovementAnalysis.volumeSpike,
-      distanceToResistance: supportResistance.distanceToResistance,
-      resistanceStrength: supportResistance.resistanceStrength,
-      vwapDistance: vwapAnalysis.vwapDistance,
-      vwapSignal: vwapAnalysis.meanReversionSignal,
-      liquidityImbalance: imbalanceAnalysis.liquidityImbalance,
-      rangeBounces: rangeAnalysis.rangeBounces,
-    });
-
     // Inicializar como SIDEWAYS por defecto
     direction = 'SIDEWAYS';
     confidence = 0;

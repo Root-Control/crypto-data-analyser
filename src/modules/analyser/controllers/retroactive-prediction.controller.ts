@@ -181,6 +181,7 @@ export class RetroactivePredictionController {
     @Query('capital') capital: any = 400,
     @Query('leverage') leverage: any = 10,
     @Query('algorithm') algorithm: any = 'all',
+    @Query('showSidewayPrediction') showSidewayPrediction: any = false,
   ) {
     try {
       // Validar algoritmo
@@ -662,6 +663,26 @@ export class RetroactivePredictionController {
         },
       };
 
+      // Filtrar predicciones SIDEWAYS si showSidewayPrediction es false
+      const showSideway =
+        showSidewayPrediction === 'true' ||
+        showSidewayPrediction === '1' ||
+        showSidewayPrediction === 'yes' ||
+        showSidewayPrediction === 'on' ||
+        showSidewayPrediction === true;
+
+      if (!showSideway && response.data.algorithms) {
+        // Filtrar predicciones SIDEWAYS de cada algoritmo
+        Object.keys(response.data.algorithms).forEach((algorithmKey) => {
+          const algorithm = response.data.algorithms[algorithmKey];
+          if (algorithm.predictions && Array.isArray(algorithm.predictions)) {
+            algorithm.predictions = algorithm.predictions.filter(
+              (pred) => pred.direction !== 'SIDEWAYS',
+            );
+          }
+        });
+      }
+
       // Ocultar resultados si showResults indica falso
       const hideResults =
         showResults === 'false' ||
@@ -683,6 +704,9 @@ export class RetroactivePredictionController {
         this.logger.log(
           `🧪 showResults param: ${showResults} → hideResults=${hideResults}`,
         );
+        this.logger.log(
+          `🧪 showSidewayPrediction param: ${showSidewayPrediction} → showSideway=${showSideway}`,
+        );
       } catch (e) {
         this.logger.warn(`Algorithms debug log error: ${(e as any)?.message}`);
       }
@@ -693,45 +717,6 @@ export class RetroactivePredictionController {
       this.logger.log(
         `📊 Resultados evaluados: ${validResults.length} | Precisión: ${accuracy.toFixed(1)}% | P&L: $${totalPnL.toFixed(2)} (${totalPnLPercent.toFixed(1)}%)`,
       );
-
-      // Log detallado para sideway
-      if (algorithm === 'sideway') {
-        this.logger.log(`🔍 SIDEWAY DEBUG - Métricas finales:`);
-        this.logger.log(`🔍 Total evaluado: ${a4Evaluated}`);
-        this.logger.log(`🔍 Predicciones correctas: ${a4Correct}`);
-        this.logger.log(
-          `🔍 Accuracy: ${a4Evaluated > 0 ? ((a4Correct / a4Evaluated) * 100).toFixed(2) : 0}%`,
-        );
-        this.logger.log(`🔍 PnL total: $${a4PnL.toFixed(2)}`);
-        this.logger.log(`🔍 PnL %: ${a4PnLPct.toFixed(2)}%`);
-
-        // Análisis de direcciones
-        const upPredictions = a4Predictions.filter(
-          (p) => p.direction === 'UP',
-        ).length;
-        const downPredictions = a4Predictions.filter(
-          (p) => p.direction === 'DOWN',
-        ).length;
-        const sidewaysPredictions = a4Predictions.filter(
-          (p) => p.direction === 'SIDEWAYS',
-        ).length;
-
-        this.logger.log(
-          `🔍 Distribución: UP=${upPredictions}, DOWN=${downPredictions}, SIDEWAYS=${sidewaysPredictions}`,
-        );
-
-        // Análisis de resultados
-        const correctUps = a4Predictions.filter(
-          (p) => p.direction === 'UP' && p.result?.actualDirection === 'UP',
-        ).length;
-        const correctDowns = a4Predictions.filter(
-          (p) => p.direction === 'DOWN' && p.result?.actualDirection === 'DOWN',
-        ).length;
-
-        this.logger.log(
-          `🔍 Correctos: UP=${correctUps}/${upPredictions}, DOWN=${correctDowns}/${downPredictions}`,
-        );
-      }
 
       return response;
     } catch (error) {
