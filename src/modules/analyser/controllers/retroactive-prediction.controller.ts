@@ -11,7 +11,7 @@ import {
 } from '../../../helpers/predictionEngine';
 import { basicPrediction } from '../../../algorithms/basic-prediction';
 import { refinedPrediction } from '../../../algorithms/refined-prediction';
-import { customPrediction } from '../../../algorithms/custom-prediction';
+import { sweepAbsorptionPrediction } from '../../../algorithms/sweep-absorption-prediction';
 import { softRefined } from '../../../algorithms/soft-refined-prediction';
 import { sidewayPrediction } from '../../../algorithms/sideway-prediction';
 
@@ -191,7 +191,7 @@ export class RetroactivePredictionController {
         'refined',
         'sideway',
         'soft-refined',
-        'custom',
+        'sweep-absorption',
       ];
       if (!validAlgorithms.includes(algorithm)) {
         return {
@@ -381,7 +381,7 @@ export class RetroactivePredictionController {
             algorithm === 'basic' ||
             algorithm === 'refined' ||
             algorithm === 'sideway' ||
-            algorithm === 'custom')
+            algorithm === 'sweep-absorption')
         ) {
           const historicalBlocksA = sanitizedBlocks.slice(0, i + 1);
           const histCandlesA =
@@ -537,9 +537,9 @@ export class RetroactivePredictionController {
             });
           }
 
-          // Algoritmo 5: Custom Prediction
-          if (algorithm === 'all' || algorithm === 'custom') {
-            const p5 = customPrediction(
+          // Algoritmo 5: Sweep Absorption Prediction
+          if (algorithm === 'all' || algorithm === 'sweep-absorption') {
+            const p5 = sweepAbsorptionPrediction(
               histCandlesA as any,
               currentBookA as any,
               3,
@@ -1657,8 +1657,8 @@ export class RetroactivePredictionController {
         };
       }
 
-      if (algorithm === 'all' || algorithm === 'custom') {
-        algorithms.customPrediction = {
+      if (algorithm === 'all' || algorithm === 'sweep-absorption') {
+        algorithms.sweepAbsorptionPrediction = {
           resultsEvaluated: data.a5Evaluated || 0,
           correctPredictions: data.a5Correct || 0,
           accuracy:
