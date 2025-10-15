@@ -11,7 +11,6 @@ import {
 } from '../../../helpers/predictionEngine';
 import { basicPrediction } from '../../../algorithms/basic-prediction';
 import { refinedPrediction } from '../../../algorithms/refined-prediction';
-import { sweepAbsorptionPrediction } from '../../../algorithms/sweep-absorption-prediction';
 import { softRefined } from '../../../algorithms/soft-refined-prediction';
 import { sidewayPrediction } from '../../../algorithms/sideway-prediction';
 
@@ -191,7 +190,6 @@ export class RetroactivePredictionController {
         'refined',
         'sideway',
         'soft-refined',
-        'sweep-absorption',
       ];
       if (!validAlgorithms.includes(algorithm)) {
         return {
@@ -298,17 +296,12 @@ export class RetroactivePredictionController {
         a4Correct = 0,
         a4PnL = 0,
         a4PnLPct = 0;
-      let a5Evaluated = 0,
-        a5Correct = 0,
-        a5PnL = 0,
-        a5PnLPct = 0;
 
       // Arrays para almacenar predicciones de cada algoritmo
       const a1Predictions: any[] = [];
       const a2Predictions: any[] = [];
       const a3Predictions: any[] = [];
       const a4Predictions: any[] = [];
-      const a5Predictions: any[] = [];
 
       for (let i = 0; i < predictions.length; i++) {
         const prediction = predictions[i];
@@ -380,8 +373,7 @@ export class RetroactivePredictionController {
           (algorithm === 'all' ||
             algorithm === 'basic' ||
             algorithm === 'refined' ||
-            algorithm === 'sideway' ||
-            algorithm === 'sweep-absorption')
+            algorithm === 'sideway')
         ) {
           const historicalBlocksA = sanitizedBlocks.slice(0, i + 1);
           const histCandlesA =
@@ -537,54 +529,6 @@ export class RetroactivePredictionController {
             });
           }
 
-          // Algoritmo 5: Sweep Absorption Prediction
-          if (algorithm === 'all' || algorithm === 'sweep-absorption') {
-            const p5 = sweepAbsorptionPrediction(
-              histCandlesA as any,
-              currentBookA as any,
-              3,
-            );
-
-            let trade5 = null;
-            let result5 = null;
-
-            if (p5 && p5.direction !== 'SIDEWAYS') {
-              trade5 = this.calculateTradingSetup(
-                currentBlock,
-                p5 as any,
-                capitalNum,
-                leverageNum,
-              );
-              const p5WithTrading = {
-                direction: p5.direction,
-                trading: trade5,
-              } as any;
-              result5 = getResults(p5WithTrading as any, nextBlock as any);
-              if (result5.exists) {
-                a5Evaluated++;
-                if (result5.actualDirection === p5.direction) a5Correct++;
-                a5PnL += result5.pnl || 0;
-                a5PnLPct += result5.pnlPercent || 0;
-              }
-            }
-
-            const p5ConfidenceDetails = this.calculateConfidenceDetails(
-              p5.confidence,
-            );
-            a5Predictions.push({
-              blockId: `${currentBlock.startDate}_${currentBlock.startTime}`,
-              direction: p5.direction,
-              confidence: p5.confidence,
-              confidencePercentage: p5ConfidenceDetails.confidencePercentage,
-              confidenceLevel: p5ConfidenceDetails.confidenceLevel,
-              confidenceColor: p5ConfidenceDetails.confidenceColor,
-              expectedMove: p5.expectedMove,
-              riskLevel: p5.riskLevel,
-              analysis: p5.breakdown,
-              trading: trade5,
-              result: result5,
-            });
-          }
         }
 
         // Solo algoritmo3
@@ -689,11 +633,6 @@ export class RetroactivePredictionController {
             a4PnL,
             a4PnLPct,
             a4Predictions,
-            a5Evaluated,
-            a5Correct,
-            a5PnL,
-            a5PnLPct,
-            a5Predictions,
           }),
         },
       };
@@ -1657,20 +1596,6 @@ export class RetroactivePredictionController {
         };
       }
 
-      if (algorithm === 'all' || algorithm === 'sweep-absorption') {
-        algorithms.sweepAbsorptionPrediction = {
-          resultsEvaluated: data.a5Evaluated || 0,
-          correctPredictions: data.a5Correct || 0,
-          accuracy:
-            data.a5Evaluated > 0
-              ? Math.round((data.a5Correct / data.a5Evaluated) * 100 * 100) /
-                100
-              : 0,
-          totalPnL: Math.round((data.a5PnL || 0) * 100) / 100,
-          totalPnLPercent: Math.round((data.a5PnLPct || 0) * 100) / 100,
-          predictions: data.a5Predictions || [],
-        };
-      }
 
       return algorithms;
     } catch (error) {
