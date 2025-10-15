@@ -5,12 +5,20 @@ import { Redis } from 'ioredis';
 @Injectable()
 export class RedisService {
   private readonly logger = new Logger(RedisService.name);
+  private dataRedis: Redis;
 
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(@InjectRedis() private readonly redis: Redis) {
+    // Crear cliente separado para operaciones de datos
+    this.dataRedis = new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+      password: process.env.REDIS_PASSWORD,
+    });
+  }
 
   async get(key: string): Promise<string | null> {
     try {
-      return await this.redis.get(key);
+      return await this.dataRedis.get(key);
     } catch (error) {
       this.logger.error(`Error getting key ${key}:`, error);
       throw error;
@@ -20,9 +28,9 @@ export class RedisService {
   async set(key: string, value: string, ttl?: number): Promise<void> {
     try {
       if (ttl) {
-        await this.redis.setex(key, ttl, value);
+        await this.dataRedis.setex(key, ttl, value);
       } else {
-        await this.redis.set(key, value);
+        await this.dataRedis.set(key, value);
       }
     } catch (error) {
       this.logger.error(`Error setting key ${key}:`, error);
@@ -32,7 +40,7 @@ export class RedisService {
 
   async del(key: string): Promise<number> {
     try {
-      return await this.redis.del(key);
+      return await this.dataRedis.del(key);
     } catch (error) {
       this.logger.error(`Error deleting key ${key}:`, error);
       throw error;
@@ -41,7 +49,7 @@ export class RedisService {
 
   async exists(key: string): Promise<boolean> {
     try {
-      const result = await this.redis.exists(key);
+      const result = await this.dataRedis.exists(key);
       return result === 1;
     } catch (error) {
       this.logger.error(`Error checking existence of key ${key}:`, error);
@@ -51,7 +59,7 @@ export class RedisService {
 
   async expire(key: string, seconds: number): Promise<boolean> {
     try {
-      const result = await this.redis.expire(key, seconds);
+      const result = await this.dataRedis.expire(key, seconds);
       return result === 1;
     } catch (error) {
       this.logger.error(`Error setting expiration for key ${key}:`, error);

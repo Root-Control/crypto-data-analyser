@@ -610,7 +610,33 @@ export class RetroactivePredictionController {
           predictionsGenerated: results.filter(
             (r) => r.predictionForNextMinute !== null,
           ).length,
-          // Solo desglose por algoritmo (solo los seleccionados)
+          // Total PnL global sumando todos los algoritmos
+          totalPnL: this.calculateTotalPnL(algorithm, {
+            a1PnL,
+            a2PnL,
+            a3PnL,
+            a4PnL,
+          }),
+          // Algoritmos individuales directamente en data después de totalPnL
+          ...this.buildAlgorithmMetadata(algorithm, {
+            a1Evaluated,
+            a1Correct,
+            a1PnL,
+            a1PnLPct,
+            a2Evaluated,
+            a2Correct,
+            a2PnL,
+            a2PnLPct,
+            a3Evaluated,
+            a3Correct,
+            a3PnL,
+            a3PnLPct,
+            a4Evaluated,
+            a4Correct,
+            a4PnL,
+            a4PnLPct,
+          }),
+          // Solo desglose por algoritmo (solo los seleccionados) - al final
           algorithms: this.buildAlgorithmsResponse(algorithm, {
             a1Evaluated,
             a1Correct,
@@ -1598,6 +1624,105 @@ export class RetroactivePredictionController {
       return algorithms;
     } catch (error) {
       this.logger.error(`Error en buildAlgorithmsResponse: ${error.message}`);
+      return {};
+    }
+  }
+
+  private calculateTotalPnL(algorithm: string, data: any): number {
+    try {
+      let totalPnL = 0;
+
+      if (algorithm === 'all' || algorithm === 'basic') {
+        totalPnL += data.a1PnL || 0;
+      }
+      if (algorithm === 'all' || algorithm === 'refined') {
+        totalPnL += data.a2PnL || 0;
+      }
+      if (algorithm === 'all' || algorithm === 'soft-refined') {
+        totalPnL += data.a3PnL || 0;
+      }
+      if (algorithm === 'all' || algorithm === 'sideway') {
+        totalPnL += data.a4PnL || 0;
+      }
+
+      return Math.round(totalPnL * 100) / 100;
+    } catch (error) {
+      this.logger.error(`Error en calculateTotalPnL: ${error.message}`);
+      return 0;
+    }
+  }
+
+  private buildAlgorithmMetadata(algorithm: string, data: any): any {
+    try {
+      const metadata: any = {};
+
+      if (algorithm === 'all' || algorithm === 'basic') {
+        const evaluated = data.a1Evaluated || 0;
+        const correct = data.a1Correct || 0;
+        metadata.basicPrediction = {
+          evaluated,
+          correct,
+          incorrect: evaluated - correct,
+          accuracy:
+            evaluated > 0
+              ? Math.round((correct / evaluated) * 100 * 100) / 100
+              : 0,
+          totalPnL: Math.round((data.a1PnL || 0) * 100) / 100,
+          pnlPercent: Math.round((data.a1PnLPct || 0) * 100) / 100,
+        };
+      }
+
+      if (algorithm === 'all' || algorithm === 'refined') {
+        const evaluated = data.a2Evaluated || 0;
+        const correct = data.a2Correct || 0;
+        metadata.refinedPrediction = {
+          evaluated,
+          correct,
+          incorrect: evaluated - correct,
+          accuracy:
+            evaluated > 0
+              ? Math.round((correct / evaluated) * 100 * 100) / 100
+              : 0,
+          totalPnL: Math.round((data.a2PnL || 0) * 100) / 100,
+          pnlPercent: Math.round((data.a2PnLPct || 0) * 100) / 100,
+        };
+      }
+
+      if (algorithm === 'all' || algorithm === 'soft-refined') {
+        const evaluated = data.a3Evaluated || 0;
+        const correct = data.a3Correct || 0;
+        metadata.softRefinedPrediction = {
+          evaluated,
+          correct,
+          incorrect: evaluated - correct,
+          accuracy:
+            evaluated > 0
+              ? Math.round((correct / evaluated) * 100 * 100) / 100
+              : 0,
+          totalPnL: Math.round((data.a3PnL || 0) * 100) / 100,
+          pnlPercent: Math.round((data.a3PnLPct || 0) * 100) / 100,
+        };
+      }
+
+      if (algorithm === 'all' || algorithm === 'sideway') {
+        const evaluated = data.a4Evaluated || 0;
+        const correct = data.a4Correct || 0;
+        metadata.sidewayPrediction = {
+          evaluated,
+          correct,
+          incorrect: evaluated - correct,
+          accuracy:
+            evaluated > 0
+              ? Math.round((correct / evaluated) * 100 * 100) / 100
+              : 0,
+          totalPnL: Math.round((data.a4PnL || 0) * 100) / 100,
+          pnlPercent: Math.round((data.a4PnLPct || 0) * 100) / 100,
+        };
+      }
+
+      return metadata;
+    } catch (error) {
+      this.logger.error(`Error en buildAlgorithmMetadata: ${error.message}`);
       return {};
     }
   }
