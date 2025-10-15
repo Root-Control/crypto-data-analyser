@@ -6,8 +6,8 @@ import {
   type BookPressure,
 } from '../helpers/predictionEngine';
 
-// Algoritmo mejorado "algoritmo2" - Optimizado para mayor profit y success rate
-export function algoritmo2(
+// Refined Prediction Algorithm - Optimized for higher profit and success rate
+export function refinedPrediction(
   historicalCandles: HistoricalCandle[],
   currentBook: BookSnapshot | null,
   minCandles = 3,

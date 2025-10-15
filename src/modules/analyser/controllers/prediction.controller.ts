@@ -7,7 +7,7 @@ import {
   getPredictionColor,
   type HistoricalCandle,
 } from '../../../helpers/predictionEngine';
-import { algoritmo3 } from '../../../algorithms/algoritmo3';
+import { softRefined } from '../../../algorithms/soft-refined-prediction';
 
 @Controller('prediction')
 export class PredictionController {
@@ -51,7 +51,7 @@ export class PredictionController {
         historicalCandles[historicalCandles.length - 1]?.book || null;
 
       // 3. Ejecutar predicción
-      const prediction = algoritmo3(historicalCandles, currentBook, 3);
+      const prediction = softRefined(historicalCandles, currentBook, 3);
 
       // 4. Preparar respuesta
       const response = {
@@ -147,7 +147,7 @@ export class PredictionController {
         };
       }
 
-      const prediction = algoritmo3(historicalCandles, currentBook, 3);
+      const prediction = softRefined(historicalCandles, currentBook, 3);
 
       return {
         success: true,

@@ -5,8 +5,8 @@ import {
   type PredictionScore,
 } from '../helpers/predictionEngine';
 
-// Algoritmo principal expuesto como "algoritmo1"
-export function algoritmo1(
+// Basic Prediction Algorithm
+export function basicPrediction(
   historicalCandles: HistoricalCandle[],
   currentBook: BookSnapshot | null,
   minCandles = 3,

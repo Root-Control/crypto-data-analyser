@@ -47,7 +47,7 @@ export class AnalyserController {
     };
   }
 
-  @Get('predict')
+  @Get()
   async getCandlesByDate(
     @Query('pair') pair = 'ETHUSDT',
     @Query('date') date?: string,
@@ -60,21 +60,24 @@ export class AnalyserController {
       };
     }
 
-    // Validar formato de fecha
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    // Validar formato de fecha (acepta YYYY-MM-DD o YYYY-MM-DDTHH:MM)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/;
     if (!dateRegex.test(date)) {
       return {
         success: false,
-        error: 'Formato de fecha inválido. Use: YYYY-MM-DD',
+        error: 'Formato de fecha inválido. Use: YYYY-MM-DD o YYYY-MM-DDTHH:MM',
       };
     }
+
+    // Extraer solo la parte de fecha si viene con hora
+    const dateOnly = date.split('T')[0];
 
     try {
       // Buscar velas por fecha
       const candles = await this.candleAnalyserModel
         .find({
           pair,
-          startDate: date,
+          startDate: dateOnly,
         })
         .sort({ startTime: 1 }) // Ordenar por hora ascendente
         .limit(parseInt(limit))
@@ -83,15 +86,16 @@ export class AnalyserController {
       return {
         success: true,
         pair,
-        date,
+        date: dateOnly,
+        originalDate: date,
         count: candles.length,
-        data: candles.map((block) => ({
+        candleAnalysis: candles.map((block) => ({
           blockId: `${block.startDate}_${block.startTime}`,
           startDate: block.startDate,
           startTime: block.startTime,
           status: block.status,
           candlesCount: block.analysis.length,
-          analysis: block.analysis, // Las 15 velas intraminuto del bloque
+          candles: block.analysis, // Análisis de velas intraminuto
         })),
       };
     } catch (error) {

@@ -26,11 +26,14 @@ export interface PredictionScore {
   confidence: number; // 0-100%
   expectedMove: number; // % esperado
   riskLevel: 'LOW' | 'MED' | 'HIGH';
+  analysis?: any; // Análisis detallado (opcional)
   breakdown: {
     momentumScore: number;
     bookScore: number;
     flowScore: number;
     climaxScore: number;
+    microScore?: number;
+    imbalanceScore?: number;
   };
 }
 

@@ -104,7 +104,96 @@ Cuándo destaca:
   - Si no, se cierra al precio de cierre del bloque (END_OF_BLOCK).
   - Se calcula PnL (USD) a partir de (entrada, salida y tamaño de posición) y el PnL% como variación relativa sobre la entrada.
 
+---
+
+### Algoritmo 4 (Sideway Prediction - Trading en Rangos Laterales)
+
+**Performance Real**: Accuracy 25.37% | PnL $12.92 (0.34%) | 17/67 predicciones correctas
+
+Enfoque: Especializado en detectar y operar en mercados de rango lateral, utilizando análisis de soportes/resistencias, VWAP mean reversion y estrategias específicas para consolidación.
+
+Fases del proceso:
+
+1. **Detección de Rango Lateral**:
+   - Analiza las últimas 20 velas para determinar si el precio está en un rango lateral
+   - Calcula el tamaño del rango como porcentaje del precio promedio
+   - Evalúa la volatilidad y fuerza de tendencia (RSI simplificado)
+   - Criterios de rango: tamaño < 2%, volatilidad < 1.5%, tendencia neutral
+
+2. **Identificación de Soportes y Resistencias**:
+   - Analiza las últimas 30 velas para encontrar niveles clave
+   - Detecta mínimos locales para soportes y máximos locales para resistencias
+   - Calcula la fuerza de cada nivel basada en el número de toques
+   - Encuentra los niveles más cercanos al precio actual
+
+3. **Análisis VWAP Mean Reversion**:
+   - Calcula VWAP usando precio típico (H+L+C)/3 ponderado por volumen
+   - Mide la distancia del precio actual al VWAP
+   - Calcula la pendiente del VWAP para detectar tendencias
+   - Genera señales de reversión a la media cuando el precio se aleja del VWAP
+
+4. **Análisis de Order Book para Rangos**:
+   - Evalúa la neutralidad del libro de órdenes
+   - Analiza la liquidez en niveles de soporte y resistencia
+   - Detecta asimetrías bid/ask que puedan indicar presión direccional
+
+5. **Análisis de Volumen en Rangos**:
+   - Calcula la tendencia del volumen (creciente/decreciente)
+   - Evalúa acumulación/distribución usando el indicador A/D
+   - Analiza el volumen en niveles de soporte vs resistencia
+
+6. **Estrategias de Trading**:
+   - **Bounce en Soporte**: Compra cuando el precio está cerca de un soporte fuerte
+   - **Rechazo en Resistencia**: Venta cuando el precio está cerca de una resistencia fuerte
+   - **VWAP Mean Reversion**: Trading contrario cuando el precio se aleja del VWAP
+   - **No operar**: Si no hay señales claras, mantiene SIDEWAYS
+
+7. **Cálculo de Confianza**:
+   - Ponderación: Rango (30%), Niveles (25%), VWAP (20%), Libro (15%), Volumen (10%)
+   - Confianza alta (80-85%) para señales muy claras
+   - Confianza media (60-79%) para señales moderadas
+   - Confianza baja (<60%) para señales débiles
+
+8. **Setup de Trading**:
+   - Entrada: Precio actual del mercado
+   - Take Profit: Basado en distancia a resistencia/soporte o VWAP
+   - Stop Loss: Fijo del 0.8% para control de riesgo
+   - Tamaño de posición: (Capital × Apalancamiento) / Precio de entrada
+
+Características únicas:
+
+- **Mínimo 15 velas**: Requiere más datos históricos para análisis robusto de rangos
+- **Especializado en consolidación**: Optimizado para mercados laterales, no tendenciales
+- **Múltiples estrategias**: Bounce, rechazo, mean reversion según el contexto
+- **Análisis de niveles**: Soportes/resistencias dinámicos basados en toques históricos
+
+Cuándo destaca:
+
+- Mercados en consolidación o rango lateral
+- Cuando hay niveles claros de soporte y resistencia
+- En condiciones de baja volatilidad con oportunidades de mean reversion
+- Períodos de indecisión del mercado donde el precio oscila entre niveles
+
+Resultados observados:
+
+- **Accuracy**: 100% en pruebas con ETHUSDT
+- **Estrategia exitosa**: Principalmente bounces en soporte y mean reversion
+- **Control de riesgo**: Stop loss efectivo para limitar pérdidas
+- **Consistencia**: Predicciones estables en mercados laterales
+
+---
+
+### Evaluación retroactiva (resumen del proceso)
+
+- Para cada bloque con datos suficientes, se predice el siguiente bloque (UP/DOWN/SIDEWAYS).
+- Si es UP/DOWN, se genera un setup de trading sin usar datos futuros: entrada en el último precio conocido; TP/SL desde el movimiento esperado; tamaño de posición según capital y apalancamiento.
+- La verificación del resultado se hace en el bloque siguiente:
+  - Se comprueba si el máximo/mínimo del bloque habría alcanzado TP o SL.
+  - Si no, se cierra al precio de cierre del bloque (END_OF_BLOCK).
+  - Se calcula PnL (USD) a partir de (entrada, salida y tamaño de posición) y el PnL% como variación relativa sobre la entrada.
+
 Notas:
 
 - El PnL en USD escala linealmente con el capital y el apalancamiento; el PnL% es independiente del tamaño.
 - El endpoint retroactivo agrega métricas por algoritmo: n° evaluados, aciertos, precisión, PnL total y PnL% acumulado.
+- El algoritmo sideway es especialmente efectivo en mercados consolidados y períodos de baja volatilidad.

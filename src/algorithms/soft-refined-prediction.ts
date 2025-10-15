@@ -6,8 +6,8 @@ import {
   type BookPressure,
 } from '../helpers/predictionEngine';
 
-// Algoritmo mejorado "algoritmo3" - Copia de algoritmo2 (estado actual)
-export function algoritmo3(
+// Soft-Refined Prediction Algorithm - Advanced multi-dimensional analysis
+export function softRefined(
   historicalCandles: HistoricalCandle[],
   currentBook: BookSnapshot | null,
   minCandles = 3,
