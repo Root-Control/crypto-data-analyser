@@ -3,7 +3,7 @@ const CandleAnalyst = require('./database/candleAnalyst');
 const { basicPrediction } = require('./algorithms/basicPrediction');
 
 // Función getLongestSequence (igual que el servidor)
-function getLongestSequence(blocks) {
+function getLongestSequence(blocks, showDetailedLogs = true) {
   // Encontrar la secuencia más larga sin gaps
   const sequences = [];
   let currentSequence = [blocks[0]];
@@ -26,7 +26,7 @@ function getLongestSequence(blocks) {
       currentSequence.push(currentBlock);
     } else {
       // Debug para gaps grandes
-      if (diffMinutes > 60) {
+      if (showDetailedLogs && diffMinutes > 60) {
         console.log(`🔍 Gap detectado: ${prevBlock.startDate}_${prevBlock.startTime} -> ${currentBlock.startDate}_${currentBlock.startTime} (${diffMinutes} minutos)`);
       }
       
@@ -40,7 +40,9 @@ function getLongestSequence(blocks) {
         currentSequence = [currentBlock];
       } else {
         // Gap muy grande, no incluir este bloque
-        console.log(`❌ Eliminando bloque ${currentBlock.startDate}_${currentBlock.startTime} por gap de ${diffMinutes} minutos`);
+        if (showDetailedLogs) {
+          console.log(`❌ Eliminando bloque ${currentBlock.startDate}_${currentBlock.startTime} por gap de ${diffMinutes} minutos`);
+        }
         currentSequence = [];
       }
     }
@@ -61,7 +63,9 @@ function getLongestSequence(blocks) {
     current.length > longest.length ? current : longest,
   );
 
-  console.log(`🏆 Secuencia más larga: ${longestSequence.length} bloques`);
+  if (showDetailedLogs) {
+    console.log(`🏆 Secuencia más larga: ${longestSequence.length} bloques`);
+  }
   return longestSequence;
 }
 
@@ -345,35 +349,45 @@ function shouldRemoveSubsequentBlocks(currentIndex, totalBlocks) {
 // Función principal de simulación
 async function runBasicSimulation(showDetailedLogs = true) {
   try {
-    console.log('🚀 Iniciando simulación basicPrediction...');
-    console.log(`📊 Símbolo: ${SYMBOL}`);
-    console.log(`💰 Capital: $${CAPITAL}`);
-    console.log(`⚡ Leverage: ${LEVERAGE}x`);
-    console.log('');
+    if (showDetailedLogs) {
+      console.log('🚀 Iniciando simulación basicPrediction...');
+      console.log(`📊 Símbolo: ${SYMBOL}`);
+      console.log(`💰 Capital: $${CAPITAL}`);
+      console.log(`⚡ Leverage: ${LEVERAGE}x`);
+      console.log('');
+    }
 
     // Conectar a MongoDB
     await mongoose.connect('mongodb://localhost:27017/crypto-data-analyser-v2');
-    console.log('✅ Conectado a MongoDB');
+    if (showDetailedLogs) {
+      console.log('✅ Conectado a MongoDB');
+    }
 
     // Obtener todos los bloques (igual que el servidor)
     const allBlocks = await CandleAnalyst.find({ pair: SYMBOL })
       .sort({ startDate: 1, startTime: 1 })
       .lean();
 
-    console.log(`📈 Total de bloques encontrados: ${allBlocks.length}`);
+    if (showDetailedLogs) {
+      console.log(`📈 Total de bloques encontrados: ${allBlocks.length}`);
+    }
     
     // Aplicar el mismo filtro que el servidor: getLongestSequence
-    const candleBlocks = getLongestSequence(allBlocks);
-    console.log(`📊 Bloques sanitizados: ${candleBlocks.length}`);
-    
-    // Mostrar los últimos 5 bloques para verificar
-    console.log('🔍 Últimos 5 bloques:');
-    candleBlocks.slice(-5).forEach((block, index) => {
-      console.log(`   ${candleBlocks.length - 5 + index + 1}. ${block.startDate}_${block.startTime} (${block.status})`);
-    });
+    const candleBlocks = getLongestSequence(allBlocks, showDetailedLogs);
+    if (showDetailedLogs) {
+      console.log(`📊 Bloques sanitizados: ${candleBlocks.length}`);
+      
+      // Mostrar los últimos 5 bloques para verificar
+      console.log('🔍 Últimos 5 bloques:');
+      candleBlocks.slice(-5).forEach((block, index) => {
+        console.log(`   ${candleBlocks.length - 5 + index + 1}. ${block.startDate}_${block.startTime} (${block.status})`);
+      });
+    }
 
     if (candleBlocks.length < 3) {
-      console.log('❌ No hay suficientes bloques para la simulación');
+      if (showDetailedLogs) {
+        console.log('❌ No hay suficientes bloques para la simulación');
+      }
       return;
     }
 
@@ -389,8 +403,8 @@ async function runBasicSimulation(showDetailedLogs = true) {
       const currentBlock = candleBlocks[i];
       const nextBlock = i < candleBlocks.length - 1 ? candleBlocks[i + 1] : null;
 
-      // Debug: mostrar bloques que se están procesando
-      if (currentBlock.startDate === '2025-10-16' && currentBlock.startTime === '09:45') {
+      // Debug: mostrar bloques que se están procesando (solo si showDetailedLogs es true)
+      if (showDetailedLogs && currentBlock.startDate === '2025-10-16' && currentBlock.startTime === '09:45') {
         console.log(`🔍 Procesando bloque: ${currentBlock.startDate}_${currentBlock.startTime}`);
         console.log(`   Next block: ${nextBlock ? `${nextBlock.startDate}_${nextBlock.startTime}` : 'null'}`);
       }
@@ -602,7 +616,9 @@ async function runBasicSimulation(showDetailedLogs = true) {
       console.log('');
     }
 
-    console.log('============================================================');
+    if (showDetailedLogs) {
+      console.log('============================================================');
+    }
     console.log('✅ Simulación completada exitosamente');
 
   } catch (error) {
@@ -611,7 +627,9 @@ async function runBasicSimulation(showDetailedLogs = true) {
     // Cerrar conexión a MongoDB
     if (mongoose.connection.readyState === 1) {
       await mongoose.disconnect();
-      console.log('🔌 Desconectado de MongoDB');
+      if (showDetailedLogs) {
+        console.log('🔌 Desconectado de MongoDB');
+      }
     }
   }
 }
