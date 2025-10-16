@@ -618,6 +618,22 @@ export class RetroactivePredictionController {
             a3PnL,
             a4PnL,
           }),
+          // Total evaluados sumando todos los algoritmos
+          totalEvaluated: this.calculateTotalEvaluated(algorithm, {
+            a1Evaluated,
+            a2Evaluated,
+            a3Evaluated,
+            a4Evaluated,
+          }),
+          // Comisiones calculadas
+          commissions: this.calculateCommissions(algorithm, {
+            a1Evaluated,
+            a2Evaluated,
+            a3Evaluated,
+            a4Evaluated,
+            capital: capitalNum,
+            leverage: leverageNum,
+          }),
           // Algoritmos individuales directamente en data después de totalPnL
           ...this.buildAlgorithmMetadata(algorithm, {
             a1Evaluated,
@@ -1634,6 +1650,107 @@ export class RetroactivePredictionController {
     } catch (error) {
       this.logger.error(`Error en calculateTotalPnL: ${error.message}`);
       return 0;
+    }
+  }
+
+  private calculateTotalEvaluated(algorithm: string, data: any): number {
+    try {
+      let totalEvaluated = 0;
+
+      if (algorithm === 'all' || algorithm === 'basic') {
+        totalEvaluated += data.a1Evaluated || 0;
+      }
+      if (algorithm === 'all' || algorithm === 'refined') {
+        totalEvaluated += data.a2Evaluated || 0;
+      }
+      if (algorithm === 'all' || algorithm === 'soft-refined') {
+        totalEvaluated += data.a3Evaluated || 0;
+      }
+      if (algorithm === 'all' || algorithm === 'sideway') {
+        totalEvaluated += data.a4Evaluated || 0;
+      }
+
+      return totalEvaluated;
+    } catch (error) {
+      this.logger.error(`Error en calculateTotalEvaluated: ${error.message}`);
+      return 0;
+    }
+  }
+
+  private calculateCommissions(algorithm: string, data: any): any {
+    try {
+      // Tasas de comisión de Binance Futures (USDT-M)
+      const takerFee = 0.0005; // 0.05%
+      const makerFee = 0.0002; // 0.02%
+
+      const totalEvaluated = this.calculateTotalEvaluated(algorithm, {
+        a1Evaluated: data.a1Evaluated,
+        a2Evaluated: data.a2Evaluated,
+        a3Evaluated: data.a3Evaluated,
+        a4Evaluated: data.a4Evaluated,
+      });
+
+      const capital = data.capital || 400;
+      const leverage = data.leverage || 10;
+      const positionValue = capital * leverage; // Valor de cada posición
+
+      // Escenarios de comisión (por trade)
+      const takerTaker = {
+        scenario: 'taker-taker',
+        description: 'Entrada y salida con órdenes que toman liquidez',
+        feePerTrade: positionValue * (takerFee + takerFee), // Entrada + Salida
+        totalTrades: totalEvaluated,
+        totalCommission: totalEvaluated * positionValue * (takerFee + takerFee),
+      };
+
+      const takerMaker = {
+        scenario: 'taker-maker',
+        description: 'Entrada tomando liquidez, salida aportando liquidez',
+        feePerTrade: positionValue * (takerFee + makerFee), // Entrada Taker + Salida Maker
+        totalTrades: totalEvaluated,
+        totalCommission: totalEvaluated * positionValue * (takerFee + makerFee),
+      };
+
+      const makerMaker = {
+        scenario: 'maker-maker',
+        description: 'Entrada y salida con órdenes que aportan liquidez',
+        feePerTrade: positionValue * (makerFee + makerFee), // Entrada + Salida
+        totalTrades: totalEvaluated,
+        totalCommission: totalEvaluated * positionValue * (makerFee + makerFee),
+      };
+
+      return {
+        rates: {
+          takerFee: `${(takerFee * 100).toFixed(3)}%`,
+          makerFee: `${(makerFee * 100).toFixed(3)}%`,
+        },
+        scenarios: {
+          takerTaker: {
+            ...takerTaker,
+            totalCommission: Math.round(takerTaker.totalCommission * 100) / 100,
+            feePerTrade: Math.round(takerTaker.feePerTrade * 100) / 100,
+          },
+          takerMaker: {
+            ...takerMaker,
+            totalCommission: Math.round(takerMaker.totalCommission * 100) / 100,
+            feePerTrade: Math.round(takerMaker.feePerTrade * 100) / 100,
+          },
+          makerMaker: {
+            ...makerMaker,
+            totalCommission: Math.round(makerMaker.totalCommission * 100) / 100,
+            feePerTrade: Math.round(makerMaker.feePerTrade * 100) / 100,
+          },
+        },
+        summary: {
+          totalTrades: totalEvaluated,
+          positionValue: Math.round(positionValue * 100) / 100,
+          capital: capital,
+          leverage: leverage,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Error en calculateCommissions: ${error.message}`);
+      return {};
     }
   }
 
