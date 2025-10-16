@@ -9,11 +9,13 @@ Helper para calcular precios de liquidación en trading con apalancamiento, basa
 ### Funciones Principales
 
 #### `calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate)`
+
 Calcula el precio de liquidación para una posición LARGA.
 
 **Fórmula:** `Liquidation Price = Entry Price * (1 - Initial Margin Rate + Maintenance Margin Rate)`
 
 **Parámetros:**
+
 - `entryPrice` (number): Precio de entrada de la posición
 - `leverage` (number): Apalancamiento utilizado (ej: 10 para 10x)
 - `maintenanceMarginRate` (number): Tasa de margen de mantenimiento (default: 0.004 = 0.4%)
@@ -21,11 +23,13 @@ Calcula el precio de liquidación para una posición LARGA.
 **Retorna:** Precio de liquidación para posición larga
 
 #### `calculateShortLiquidationPrice(entryPrice, leverage, maintenanceMarginRate)`
+
 Calcula el precio de liquidación para una posición CORTA.
 
 **Fórmula:** `Liquidation Price = Entry Price * (1 + Initial Margin Rate - Maintenance Margin Rate)`
 
 **Parámetros:**
+
 - `entryPrice` (number): Precio de entrada de la posición
 - `leverage` (number): Apalancamiento utilizado (ej: 10 para 10x)
 - `maintenanceMarginRate` (number): Tasa de margen de mantenimiento (default: 0.004 = 0.4%)
@@ -33,9 +37,11 @@ Calcula el precio de liquidación para una posición CORTA.
 **Retorna:** Precio de liquidación para posición corta
 
 #### `calculateLiquidationPrice(side, entryPrice, leverage, maintenanceMarginRate)`
+
 Calcula el precio de liquidación para cualquier tipo de posición.
 
 **Parámetros:**
+
 - `side` (string): 'LONG' o 'SHORT'
 - `entryPrice` (number): Precio de entrada de la posición
 - `leverage` (number): Apalancamiento utilizado
@@ -46,20 +52,25 @@ Calcula el precio de liquidación para cualquier tipo de posición.
 ### Funciones de Margen
 
 #### `calculateInitialMargin(notionalValue, leverage)`
+
 Calcula el margen inicial requerido para una posición.
 
 #### `calculateMaintenanceMargin(notionalValue, maintenanceMarginRate)`
+
 Calcula el margen de mantenimiento requerido para una posición.
 
 #### `calculateMarginRatio(currentPrice, entryPrice, side, leverage, maintenanceMarginRate)`
+
 Calcula el ratio de margen actual de una posición.
 
 ### Funciones de Análisis de Riesgo
 
 #### `checkLiquidationRisk(currentPrice, entryPrice, side, leverage, maintenanceMarginRate, warningThreshold)`
+
 Verifica si una posición está en riesgo de liquidación.
 
 **Retorna:**
+
 ```javascript
 {
   status: 'SAFE' | 'WARNING' | 'LIQUIDATED',
@@ -73,7 +84,10 @@ Verifica si una posición está en riesgo de liquidación.
 ### Ejemplo de Uso
 
 ```javascript
-const { calculateLiquidationPrice, checkLiquidationRisk } = require('./liquidation');
+const {
+  calculateLiquidationPrice,
+  checkLiquidationRisk,
+} = require('./liquidation');
 
 // Calcular precio de liquidación para posición larga
 const liquidationPrice = calculateLiquidationPrice('LONG', 4000, 10, 0.004);
@@ -88,21 +102,25 @@ console.log(`Ratio de margen: ${(risk.marginRatio * 100).toFixed(2)}%`);
 ### Fórmulas Utilizadas
 
 #### Posición Larga (LONG)
+
 ```
 Liquidation Price = Entry Price × (1 - 1/Leverage + Maintenance Margin Rate)
 ```
 
 #### Posición Corta (SHORT)
+
 ```
 Liquidation Price = Entry Price × (1 + 1/Leverage - Maintenance Margin Rate)
 ```
 
 #### Margen Inicial
+
 ```
 Initial Margin = Notional Value / Leverage
 ```
 
 #### Margen de Mantenimiento
+
 ```
 Maintenance Margin = Notional Value × Maintenance Margin Rate
 ```
