@@ -637,4 +637,4 @@ async function runBasicSimulation(showDetailedLogs = true) {
 // Ejecutar simulación
 // Para logs detallados: runBasicSimulation(true)
 // Para logs simples: runBasicSimulation(false)
-runBasicSimulation(true);
+runBasicSimulation(false);
