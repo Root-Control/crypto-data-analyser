@@ -343,7 +343,7 @@ function shouldRemoveSubsequentBlocks(currentIndex, totalBlocks) {
 }
 
 // Función principal de simulación
-async function runBasicSimulation() {
+async function runBasicSimulation(showDetailedLogs = true) {
   try {
     console.log('🚀 Iniciando simulación basicPrediction...');
     console.log(`📊 Símbolo: ${SYMBOL}`);
@@ -529,8 +529,8 @@ async function runBasicSimulation() {
     const endOfBlockTrades = trades.filter(trade => trade.exitReason === 'END_OF_BLOCK');
     const tpSlTrades = trades.filter(trade => trade.exitReason !== 'END_OF_BLOCK');
 
-    // Mostrar trades que terminaron en END_OF_BLOCK
-    if (endOfBlockTrades.length > 0) {
+    // Mostrar trades que terminaron en END_OF_BLOCK (solo si showDetailedLogs es true)
+    if (showDetailedLogs && endOfBlockTrades.length > 0) {
       console.log('🟡 TRADES QUE TERMINARON EN END_OF_BLOCK:');
       endOfBlockTrades.forEach((trade, index) => {
         const pnlColor = trade.pnl >= 0 ? 'green' : 'red';
@@ -545,8 +545,8 @@ async function runBasicSimulation() {
       console.log('');
     }
 
-    // Mostrar trades que NO terminaron en END_OF_BLOCK (TAKE_PROFIT o STOP_LOSS)
-    if (tpSlTrades.length > 0) {
+    // Mostrar trades que NO terminaron en END_OF_BLOCK (TAKE_PROFIT o STOP_LOSS) (solo si showDetailedLogs es true)
+    if (showDetailedLogs && tpSlTrades.length > 0) {
       console.log('🟢🔴 TRADES QUE ALCANZARON TP/SL:');
       tpSlTrades.forEach((trade, index) => {
         const pnlColor = trade.pnl >= 0 ? 'green' : 'red';
@@ -575,21 +575,23 @@ async function runBasicSimulation() {
     console.log(`💰 TOTAL GENERAL: P&L: $${totalPnL.toFixed(2)} | Precisión: ${accuracy.toFixed(2)}%`);
     console.log('');
 
-    // Top 5 mejores y peores trades
-    const sortedTrades = [...trades].sort((a, b) => b.pnl - a.pnl);
-    console.log('🏆 TOP 5 MEJORES TRADES:');
-    sortedTrades.slice(0, 5).forEach((trade, index) => {
-      const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
-      console.log(`${index + 1}. ${trade.blockId} | ${trade.direction} | P&L: $${trade.pnl.toFixed(2)} | ${colorize(trade.actualDirection, directionColor)}`);
-    });
-    console.log('');
+    // Top 5 mejores y peores trades (solo si showDetailedLogs es true)
+    if (showDetailedLogs) {
+      const sortedTrades = [...trades].sort((a, b) => b.pnl - a.pnl);
+      console.log('🏆 TOP 5 MEJORES TRADES:');
+      sortedTrades.slice(0, 5).forEach((trade, index) => {
+        const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
+        console.log(`${index + 1}. ${trade.blockId} | ${trade.direction} | P&L: $${trade.pnl.toFixed(2)} | ${colorize(trade.actualDirection, directionColor)}`);
+      });
+      console.log('');
 
-    console.log('💥 TOP 5 PEORES TRADES:');
-    sortedTrades.slice(-5).reverse().forEach((trade, index) => {
-      const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
-      console.log(`${index + 1}. ${trade.blockId} | ${trade.direction} | P&L: $${trade.pnl.toFixed(2)} | ${colorize(trade.actualDirection, directionColor)}`);
-    });
-    console.log('');
+      console.log('💥 TOP 5 PEORES TRADES:');
+      sortedTrades.slice(-5).reverse().forEach((trade, index) => {
+        const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
+        console.log(`${index + 1}. ${trade.blockId} | ${trade.direction} | P&L: $${trade.pnl.toFixed(2)} | ${colorize(trade.actualDirection, directionColor)}`);
+      });
+      console.log('');
+    }
 
     console.log('============================================================');
     console.log('✅ Simulación completada exitosamente');
@@ -606,4 +608,6 @@ async function runBasicSimulation() {
 }
 
 // Ejecutar simulación
-runBasicSimulation();
+// Para logs detallados: runBasicSimulation(true)
+// Para logs simples: runBasicSimulation(false)
+runBasicSimulation(true);
