@@ -618,8 +618,8 @@ async function runBasicSimulation(showDetailedLogs = true) {
 
     if (showDetailedLogs) {
       console.log('============================================================');
+      console.log('✅ Simulación completada exitosamente');
     }
-    console.log('✅ Simulación completada exitosamente');
 
   } catch (error) {
     console.error('❌ Error en la simulación:', error);
