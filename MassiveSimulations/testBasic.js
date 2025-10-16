@@ -488,20 +488,23 @@ async function runBasicSimulation(showDetailedLogs = true) {
 
     // Mostrar resultados
     console.log('');
-    console.log('📊 ANÁLISIS DE RESULTADOS');
-    console.log('============================================================');
-    console.log(`📈 Total de predicciones: ${totalPredictions}`);
-    console.log(`🎯 Total de trades: ${totalTrades}`);
-    console.log(`🟢 Predicciones UP: ${upPredictions} (${((upPredictions/totalPredictions)*100).toFixed(1)}%)`);
-    console.log(`🔴 Predicciones DOWN: ${downPredictions} (${((downPredictions/totalPredictions)*100).toFixed(1)}%)`);
-    console.log(`🟡 Predicciones SIDEWAYS: ${sidewaysPredictions} (${((sidewaysPredictions/totalPredictions)*100).toFixed(1)}%)`);
-    console.log('');
-    console.log(`🎯 Precisión: ${correctTrades}/${totalTrades} (${accuracy.toFixed(2)}%)`);
-    console.log(`💰 P&L Total: $${totalPnL.toFixed(2)}`);
-    console.log(`📊 P&L Promedio por trade: $${avgPnL.toFixed(2)}`);
-    console.log(`📈 P&L Porcentual: ${pnlPercent.toFixed(2)}%`);
-    console.log(`💵 Capital total invertido: $${totalCapital.toFixed(2)}`);
-    console.log('');
+    // Mostrar análisis de resultados (solo si showDetailedLogs es true)
+    if (showDetailedLogs) {
+      console.log('📊 ANÁLISIS DE RESULTADOS');
+      console.log('============================================================');
+      console.log(`📈 Total de predicciones: ${totalPredictions}`);
+      console.log(`🎯 Total de trades: ${totalTrades}`);
+      console.log(`🟢 Predicciones UP: ${upPredictions} (${((upPredictions/totalPredictions)*100).toFixed(1)}%)`);
+      console.log(`🔴 Predicciones DOWN: ${downPredictions} (${((downPredictions/totalPredictions)*100).toFixed(1)}%)`);
+      console.log(`🟡 Predicciones SIDEWAYS: ${sidewaysPredictions} (${((sidewaysPredictions/totalPredictions)*100).toFixed(1)}%)`);
+      console.log('');
+      console.log(`🎯 Precisión: ${correctTrades}/${totalTrades} (${accuracy.toFixed(2)}%)`);
+      console.log(`💰 P&L Total: $${totalPnL.toFixed(2)}`);
+      console.log(`📊 P&L Promedio por trade: $${avgPnL.toFixed(2)}`);
+      console.log(`📈 P&L Porcentual: ${pnlPercent.toFixed(2)}%`);
+      console.log(`💵 Capital total invertido: $${totalCapital.toFixed(2)}`);
+      console.log('');
+    }
 
     // Mostrar todos los trades individuales (solo si showDetailedLogs es true)
     if (showDetailedLogs) {
@@ -565,15 +568,19 @@ async function runBasicSimulation(showDetailedLogs = true) {
       console.log('');
     }
 
-    console.log(`🎯 Take Profit alcanzado: ${tpReached} (${((tpReached/totalTrades)*100).toFixed(1)}%)`);
-    console.log(`🛑 Stop Loss alcanzado: ${slReached} (${((slReached/totalTrades)*100).toFixed(1)}%)`);
-    console.log(`⏰ Fin de bloque: ${endOfBlock} (${((endOfBlock/totalTrades)*100).toFixed(1)}%)`);
-    console.log('');
+    // Mostrar estadísticas detalladas (solo si showDetailedLogs es true)
+    if (showDetailedLogs) {
+      console.log(`🎯 Take Profit alcanzado: ${tpReached} (${((tpReached/totalTrades)*100).toFixed(1)}%)`);
+      console.log(`🛑 Stop Loss alcanzado: ${slReached} (${((slReached/totalTrades)*100).toFixed(1)}%)`);
+      console.log(`⏰ Fin de bloque: ${endOfBlock} (${((endOfBlock/totalTrades)*100).toFixed(1)}%)`);
+      console.log('');
 
-    console.log(`🟢 Trades UP: ${upTrades.length} | P&L: $${upPnL.toFixed(2)} | Precisión: ${upAccuracy.toFixed(1)}%`);
-    console.log(`🔴 Trades DOWN: ${downTrades.length} | P&L: $${downPnL.toFixed(2)} | Precisión: ${downAccuracy.toFixed(1)}%`);
-    console.log('');
+      console.log(`🟢 Trades UP: ${upTrades.length} | P&L: $${upPnL.toFixed(2)} | Precisión: ${upAccuracy.toFixed(1)}%`);
+      console.log(`🔴 Trades DOWN: ${downTrades.length} | P&L: $${downPnL.toFixed(2)} | Precisión: ${downAccuracy.toFixed(1)}%`);
+      console.log('');
+    }
 
+    // Siempre mostrar el TOTAL GENERAL
     console.log(`💰 TOTAL GENERAL: P&L: $${totalPnL.toFixed(2)} | Precisión: ${accuracy.toFixed(2)}%`);
     console.log('');
 
