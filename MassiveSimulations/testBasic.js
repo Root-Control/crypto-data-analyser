@@ -503,26 +503,28 @@ async function runBasicSimulation(showDetailedLogs = true) {
     console.log(`💵 Capital total invertido: $${totalCapital.toFixed(2)}`);
     console.log('');
 
-    // Mostrar todos los trades individuales
-    console.log('🔍 DEBUG - TODOS los PnL individuales:');
-    trades.forEach((trade, index) => {
-      const pnlColor = trade.pnl >= 0 ? 'green' : 'red';
-      const maxColor = trade.maxPossiblePnL >= 0 ? 'green' : 'red';
-      const tpColor = trade.tpTargetPnL >= 0 ? 'green' : 'red';
-      const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
-      
-      console.log(`${index + 1}. ${trade.blockId} | ${trade.direction}`);
-      console.log(`   Entry: $${trade.details.entryPrice} | Exit: $${trade.details.finalPrice} | Size: ${trade.details.positionSize || 'N/A'}`);
-      console.log(`   Move: ${trade.actualMove.toFixed(2)}% | P&L: ${colorize('$' + trade.pnl.toFixed(2), pnlColor)} | ${colorize(trade.actualDirection, directionColor)}`);
-      console.log(`   Details: open=${trade.details.open}, close=${trade.details.close}, high=${trade.details.maxPrice}, low=${trade.details.minPrice}`);
-      
-      if (trade.exitReason === 'END_OF_BLOCK') {
-        console.log(`   🔴 END OF BLOCK`);
-      } else {
-        console.log(`   ${trade.exitReason === 'TAKE_PROFIT' ? '🟢' : '🔴'} ${trade.exitReason}`);
-      }
-      console.log('');
-    });
+    // Mostrar todos los trades individuales (solo si showDetailedLogs es true)
+    if (showDetailedLogs) {
+      console.log('🔍 DEBUG - TODOS los PnL individuales:');
+      trades.forEach((trade, index) => {
+        const pnlColor = trade.pnl >= 0 ? 'green' : 'red';
+        const maxColor = trade.maxPossiblePnL >= 0 ? 'green' : 'red';
+        const tpColor = trade.tpTargetPnL >= 0 ? 'green' : 'red';
+        const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
+        
+        console.log(`${index + 1}. ${trade.blockId} | ${trade.direction}`);
+        console.log(`   Entry: $${trade.details.entryPrice} | Exit: $${trade.details.finalPrice} | Size: ${trade.details.positionSize || 'N/A'}`);
+        console.log(`   Move: ${trade.actualMove.toFixed(2)}% | P&L: ${colorize('$' + trade.pnl.toFixed(2), pnlColor)} | ${colorize(trade.actualDirection, directionColor)}`);
+        console.log(`   Details: open=${trade.details.open}, close=${trade.details.close}, high=${trade.details.maxPrice}, low=${trade.details.minPrice}`);
+        
+        if (trade.exitReason === 'END_OF_BLOCK') {
+          console.log(`   🔴 END OF BLOCK`);
+        } else {
+          console.log(`   ${trade.exitReason === 'TAKE_PROFIT' ? '🟢' : '🔴'} ${trade.exitReason}`);
+        }
+        console.log('');
+      });
+    }
 
 
     // Separar trades por tipo de salida
@@ -610,4 +612,4 @@ async function runBasicSimulation(showDetailedLogs = true) {
 // Ejecutar simulación
 // Para logs detallados: runBasicSimulation(true)
 // Para logs simples: runBasicSimulation(false)
-runBasicSimulation(true);
+runBasicSimulation(false);
