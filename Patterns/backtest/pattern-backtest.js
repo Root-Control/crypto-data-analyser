@@ -219,14 +219,14 @@ async function fetchHistoricalDataWithValidation() {
   // Sort all candles by timestamp (oldest first)
   allCandles.sort((a, b) => a.timestamp - b.timestamp);
   
-  // Remove duplicates and ensure temporal sequence
+  // Remove only exact timestamp duplicates (not sequential validation)
   const finalCandles = [];
-  let prevTimestamp = null;
+  const seenTimestamps = new Set();
   
   for (const candle of allCandles) {
-    if (!prevTimestamp || candle.timestamp > prevTimestamp) {
+    if (!seenTimestamps.has(candle.timestamp)) {
       finalCandles.push(candle);
-      prevTimestamp = candle.timestamp;
+      seenTimestamps.add(candle.timestamp);
     } else {
       duplicatesFound++;
     }
@@ -711,7 +711,7 @@ async function generateMainSummaryReport(detections, totalCandles) {
   doc.fillColor('#2c3e50')
      .fontSize(18)
      .font('Helvetica-Bold')
-     .text('📊 EXECUTIVE SUMMARY', 50, y);
+     .text('EXECUTIVE SUMMARY', 50, y);
   
   y += 40;
   
@@ -755,7 +755,7 @@ async function generateMainSummaryReport(detections, totalCandles) {
   doc.fillColor('#2c3e50')
      .fontSize(18)
      .font('Helvetica-Bold')
-     .text('📈 CATEGORY BREAKDOWN', 50, y);
+     .text('CATEGORY BREAKDOWN', 50, y);
   
   y += 40;
   
@@ -800,7 +800,7 @@ async function generateMainSummaryReport(detections, totalCandles) {
   doc.fillColor('#2c3e50')
      .fontSize(18)
      .font('Helvetica-Bold')
-     .text('🏆 TOP 10 PATTERNS', 50, y);
+     .text('TOP 10 PATTERNS', 50, y);
   
   y += 40;
   
@@ -816,8 +816,8 @@ async function generateMainSummaryReport(detections, totalCandles) {
   topPatterns.forEach(([name, count], index) => {
     const percentage = ((count / totalDetections) * 100).toFixed(1);
     
-    // Medal emoji for top 3
-    const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`;
+    // Number for top patterns
+    const medal = `${index + 1}.`;
     
     doc.fillColor('#2c3e50')
        .fontSize(14)
