@@ -350,29 +350,67 @@ async function scanAllPatterns(candles, detectors) {
   return detections;
 }
 
+// Pattern priority function (higher number = higher priority)
+function getPatternPriority(patternName) {
+  const priorities = {
+    // Doji patterns (highest priority - most specific)
+    'dragonfly-doji': 100,
+    'gravestone-doji': 100,
+    'long-legged-doji': 100,
+    'doji': 90,
+    
+    // Hammer/Hanging Man patterns (high priority)
+    'hammer': 80,
+    'hanging-man': 80,
+    'inverted-hammer': 80,
+    'shooting-star': 80,
+    
+    // Other single candle patterns (medium priority)
+    'marubozu': 70,
+    'spinning-top': 60
+  };
+  
+  return priorities[patternName] || 50;
+}
+
 async function scanSingleCandlePatterns(candles, detectors) {
   const detections = [];
   
   for (let i = 0; i < candles.length; i++) {
+    let bestMatch = null;
+    let bestPriority = 0;
+    
+    // Check all patterns and find the highest priority match
     for (const detector of detectors) {
       try {
         const result = detector.detect(candles, i);
         if (result.match) {
-          detections.push({
-            name: detector.name,
-            type: detector.type,
-            index: i,
-            timestampLocal: convertTimestampToLima(candles[i].timestamp),
-            confidence: result.confidence,
-            meta: result.meta,
-            typicalPrediction: detector.spec.typicalPrediction,
-            commonContext: detector.spec.commonContext,
-            candle: candles[i] // Add candle data
-          });
+          const priority = getPatternPriority(detector.name);
+          
+          // Only keep the highest priority pattern for this candle
+          if (priority > bestPriority) {
+            bestPriority = priority;
+            bestMatch = {
+              name: detector.name,
+              type: detector.type,
+              index: i,
+              timestampLocal: convertTimestampToLima(candles[i].timestamp),
+              confidence: result.confidence,
+              meta: result.meta,
+              typicalPrediction: detector.spec.typicalPrediction,
+              commonContext: detector.spec.commonContext,
+              candle: candles[i]
+            };
+          }
         }
       } catch (error) {
         // Skip problematic patterns
       }
+    }
+    
+    // Add the best match if found
+    if (bestMatch) {
+      detections.push(bestMatch);
     }
   }
   
