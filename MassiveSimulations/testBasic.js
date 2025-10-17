@@ -469,6 +469,7 @@ async function runBasicSimulation(
     tpMultiplier: TP_MULTIPLIER,
     tpMaxPercent: TP_MAX_PERCENT,
     slPercent: SL_PERCENT,
+    mongooseConnection: null,
   }
 ) {
   
@@ -486,10 +487,36 @@ async function runBasicSimulation(
       console.log('');
     }
 
-    // Conectar a MongoDB
-    await mongoose.connect(MONGODB_URI);
-    if (showDetailedLogs) {
-      console.log('✅ Conectado a MongoDB');
+    // Usar conexión existente o conectar a MongoDB
+    if (config.mongooseConnection && config.mongooseConnection.connection.readyState === 1) {
+      // Usar la conexión existente pasada como parámetro
+      if (showDetailedLogs) {
+        console.log('✅ Usando conexión MongoDB existente');
+      }
+    } else if (!config.mongooseConnection) {
+      // Conectar a MongoDB si no hay conexión existente
+      await mongoose.connect(MONGODB_URI);
+      if (showDetailedLogs) {
+        console.log('✅ Conectado a MongoDB');
+      }
+    } else {
+      // Si hay una conexión pero no está lista, esperar
+      if (showDetailedLogs) {
+        console.log('⏳ Esperando conexión MongoDB...');
+      }
+      await new Promise((resolve) => {
+        const checkConnection = () => {
+          if (config.mongooseConnection.connection.readyState === 1) {
+            resolve();
+          } else {
+            setTimeout(checkConnection, 100);
+          }
+        };
+        checkConnection();
+      });
+      if (showDetailedLogs) {
+        console.log('✅ Conexión MongoDB lista');
+      }
     }
 
     // Obtener todos los bloques (igual que el servidor)
@@ -758,20 +785,22 @@ async function runBasicSimulation(
   } catch (error) {
     console.error('❌ Error en la simulación:', error);
   } finally {
-    // Cerrar conexión a MongoDB de manera segura
-    try {
-      if (mongoose.connection.readyState === 1) {
-        // Esperar un momento para que las operaciones pendientes terminen
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await mongoose.disconnect();
-        if (showDetailedLogs) {
-          console.log('🔌 Desconectado de MongoDB');
+    // Cerrar conexión a MongoDB de manera segura solo si no hay conexión existente
+    if (!config.mongooseConnection) {
+      try {
+        if (mongoose.connection.readyState === 1) {
+          // Esperar un momento para que las operaciones pendientes terminen
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await mongoose.disconnect();
+          if (showDetailedLogs) {
+            console.log('🔌 Desconectado de MongoDB');
+          }
         }
-      }
-    } catch (disconnectError) {
-      // Ignorar errores de desconexión
-      if (showDetailedLogs) {
-        console.log('🔌 Desconectado de MongoDB (con errores menores)');
+      } catch (disconnectError) {
+        // Ignorar errores de desconexión
+        if (showDetailedLogs) {
+          console.log('🔌 Desconectado de MongoDB (con errores menores)');
+        }
       }
     }
   }
