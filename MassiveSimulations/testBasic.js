@@ -463,38 +463,7 @@ async function runBasicSimulation(showDetailedLogs = true, config = {}) {
       const currentBook = currentBlock.analysis[currentBlock.analysis.length - 1]?.book || null;
 
       // Generar predicción usando basicPrediction
-      const prediction = basicPrediction(historicalCandles, currentBook, 3, {
-        RECENT_CANDLES_MOMENTUM,
-        SUPPORT_RESISTANCE_CANDLES,
-        SUPPORT_TOLERANCE,
-        RESISTANCE_TOLERANCE,
-        VOLATILITY_AMPLIFIER,
-        BOOK_LEVELS,
-        HIGH_LIQUIDITY_THRESHOLD,
-        MEDIUM_LIQUIDITY_THRESHOLD,
-        LAST_MINUTE_WEIGHT,
-        RECENT_AVG_WEIGHT,
-        NEUTRAL_IMBALANCE_THRESHOLD,
-        STRONG_IMBALANCE_THRESHOLD,
-        FLOW_RECENT_CANDLES,
-        CLIMAX_RECENT_CANDLES,
-        CLIMAX_FLAG_WEIGHT,
-        BULLISH_FLAG_WEIGHT,
-        BEARISH_FLAG_WEIGHT,
-        ALGORITHM_WEIGHTS,
-        MOMENTUM_WEIGHTS,
-        BOOK_WEIGHTS,
-        STRONG_MOMENTUM_THRESHOLD,
-        STRONG_BOOK_THRESHOLD,
-        STRONG_FLOW_THRESHOLD,
-        FINAL_SCORE_THRESHOLD,
-        CONFIDENCE_MULTIPLIER,
-        EXPECTED_MOVE_MULTIPLIER,
-        HIGH_CONFIDENCE_THRESHOLD,
-        MEDIUM_CONFIDENCE_THRESHOLD,
-        HIGH_LIQUIDITY_RISK,
-        MEDIUM_LIQUIDITY_RISK,
-      });
+      const prediction = basicPrediction(historicalCandles, currentBook, 3);
 
       totalPredictions++;
 
@@ -666,9 +635,14 @@ async function runBasicSimulation(showDetailedLogs = true, config = {}) {
       console.log('');
     }
 
-    // Siempre mostrar el TOTAL GENERAL
-    console.log(`💰 TOTAL GENERAL: P&L: $${totalPnL.toFixed(2)} | Precisión: ${accuracy.toFixed(2)}%`);
-    console.log('');
+    // Mostrar resultado según el nivel de logs
+    if (showDetailedLogs) {
+      console.log(`💰 TOTAL GENERAL: P&L: $${totalPnL.toFixed(2)} | Precisión: ${accuracy.toFixed(2)}%`);
+      console.log('');
+    } else {
+      // Solo mostrar precisión cuando showDetailedLogs es false
+      console.log(accuracy.toFixed(2));
+    }
 
     // Top 5 mejores y peores trades (solo si showDetailedLogs es true)
     if (showDetailedLogs) {
@@ -696,11 +670,20 @@ async function runBasicSimulation(showDetailedLogs = true, config = {}) {
   } catch (error) {
     console.error('❌ Error en la simulación:', error);
   } finally {
-    // Cerrar conexión a MongoDB
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.disconnect();
+    // Cerrar conexión a MongoDB de manera segura
+    try {
+      if (mongoose.connection.readyState === 1) {
+        // Esperar un momento para que las operaciones pendientes terminen
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await mongoose.disconnect();
+        if (showDetailedLogs) {
+          console.log('🔌 Desconectado de MongoDB');
+        }
+      }
+    } catch (disconnectError) {
+      // Ignorar errores de desconexión
       if (showDetailedLogs) {
-        console.log('🔌 Desconectado de MongoDB');
+        console.log('🔌 Desconectado de MongoDB (con errores menores)');
       }
     }
   }
