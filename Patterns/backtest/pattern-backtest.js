@@ -17,38 +17,52 @@ let redisClient = null;
  * MAIN BACKTEST PROCESS
  */
 
-async function runPatternBacktest() {
+async function runPatternBacktest(forceRefresh = false) {
   console.log('🚀 Starting Enhanced Pattern Detection Backtest...');
   
   try {
     // STEP 1: Initialize Redis connection
     await initializeRedis();
     
-    // STEP 2: Historical Data Ingestion
-    console.log('📊 Fetching historical data from Binance...');
-    const candles = await fetchHistoricalData();
+    // STEP 2: Check if data exists in Redis (unless forced refresh)
+    let candles = null;
     
-    // STEP 3: Store in Redis
-    console.log('💾 Storing candles in Redis...');
-    await storeCandlesInRedis(candles);
+    if (forceRefresh) {
+      console.log('🔄 Force refresh enabled, bypassing cache...');
+    } else {
+      console.log('🔍 Checking Redis cache for existing data...');
+      candles = await getCandlesFromRedis();
+    }
     
-    // STEP 4: Load pattern detectors
+    if (!candles) {
+      // STEP 3: Historical Data Ingestion (only if not in cache or forced)
+      console.log('📊 Fetching fresh historical data from Binance...');
+      candles = await fetchHistoricalDataWithValidation();
+      
+      // STEP 4: Store in Redis with TTL
+      console.log('💾 Storing candles in Redis with 2-hour TTL...');
+      await storeCandlesInRedis(candles);
+    } else {
+      console.log('🚀 Using cached data, skipping API calls');
+    }
+    
+    // STEP 5: Load pattern detectors
     console.log('🔍 Loading pattern detectors...');
     const detectors = await loadPatternDetectors();
     
-    // STEP 5: Scan for patterns
+    // STEP 6: Scan for patterns
     console.log('🔎 Scanning for patterns in 20,000 historical candles...');
     const detections = await scanAllPatterns(candles, detectors);
     
-    // STEP 6: Generate beautiful PDF reports by category
+    // STEP 7: Generate beautiful PDF reports by category
     console.log('📄 Generating beautiful PDF reports...');
     await generateCategoryReports(detections);
     
-    // STEP 7: Generate main summary report
+    // STEP 8: Generate main summary report
     console.log('📊 Generating main summary report...');
     await generateMainSummaryReport(detections, candles.length);
     
-    // STEP 8: Console summary
+    // STEP 9: Console summary
     console.log('✅ Enhanced backtest completed successfully!');
     console.log('📊 Summary:');
     console.log(`Total patterns detected: ${detections.length}`);
@@ -112,7 +126,7 @@ async function initializeRedis() {
   console.log('✅ Connected to Redis');
 }
 
-async function fetchHistoricalData() {
+async function fetchHistoricalDataWithValidation() {
   const symbol = 'ETHUSDT';
   const interval = '15m';
   const limit = 1000; // 1000 candles per request (Binance limit)
@@ -121,8 +135,11 @@ async function fetchHistoricalData() {
   
   let allCandles = [];
   let endTime = Date.now(); // Start from now
+  let lastTimestamp = null;
+  let duplicatesFound = 0;
+  let invalidCandles = 0;
   
-  console.log(`📈 Fetching ${totalCandles} candles in ${iterations} batches...`);
+  console.log(`📈 Fetching ${totalCandles} candles in ${iterations} batches with temporal validation...`);
   
   for (let i = 0; i < iterations; i++) {
     console.log(`  Batch ${i + 1}/${iterations}...`);
@@ -137,23 +154,53 @@ async function fetchHistoricalData() {
       };
       
       const response = await axios.get(url, { params });
-      const candles = response.data.map(kline => ({
+      const rawCandles = response.data.map(kline => ({
         open: parseFloat(kline[1]),
         high: parseFloat(kline[2]),
         low: parseFloat(kline[3]),
         close: parseFloat(kline[4]),
         volume: parseFloat(kline[5]),
-        timestamp: kline[0],
-        openTime: new Date(kline[0])
+        timestamp: parseInt(kline[0]),
+        openTime: new Date(parseInt(kline[0]))
       }));
       
+      // Validate and filter candles
+      const validCandles = [];
+      let batchLastTimestamp = null;
+      
+      for (const candle of rawCandles) {
+        // Validate candle data
+        if (!candle.open || !candle.high || !candle.low || !candle.close || !candle.timestamp) {
+          invalidCandles++;
+          continue;
+        }
+        
+        // Check for temporal duplicates within this batch only
+        if (batchLastTimestamp && candle.timestamp <= batchLastTimestamp) {
+          duplicatesFound++;
+          continue;
+        }
+        
+        // Validate OHLC relationships
+        if (candle.high < candle.low || candle.high < candle.open || candle.high < candle.close ||
+            candle.low > candle.open || candle.low > candle.close) {
+          invalidCandles++;
+          continue;
+        }
+        
+        validCandles.push(candle);
+        batchLastTimestamp = candle.timestamp;
+      }
+      
       // Reverse to get chronological order (oldest first)
-      allCandles = candles.reverse().concat(allCandles);
+      allCandles = validCandles.reverse().concat(allCandles);
       
       // Set endTime for next batch (go backward in time)
-      endTime = candles[0].timestamp - 1;
+      if (validCandles.length > 0) {
+        endTime = validCandles[0].timestamp - 1;
+      }
       
-      console.log(`    ✅ Fetched ${candles.length} candles`);
+      console.log(`    ✅ Fetched ${validCandles.length} valid candles (${rawCandles.length - validCandles.length} filtered)`);
       
       // Cooldown between requests
       if (i < iterations - 1) {
@@ -166,14 +213,60 @@ async function fetchHistoricalData() {
     }
   }
   
-  console.log(`✅ Total candles fetched: ${allCandles.length}`);
-  return allCandles;
+  // Final validation and sorting
+  console.log(`🔍 Final validation and sorting of ${allCandles.length} candles...`);
+  
+  // Sort all candles by timestamp (oldest first)
+  allCandles.sort((a, b) => a.timestamp - b.timestamp);
+  
+  // Remove duplicates and ensure temporal sequence
+  const finalCandles = [];
+  let prevTimestamp = null;
+  
+  for (const candle of allCandles) {
+    if (!prevTimestamp || candle.timestamp > prevTimestamp) {
+      finalCandles.push(candle);
+      prevTimestamp = candle.timestamp;
+    } else {
+      duplicatesFound++;
+    }
+  }
+  
+  console.log(`✅ Total candles fetched: ${finalCandles.length}`);
+  console.log(`📊 Quality report:`);
+  console.log(`   - Invalid candles filtered: ${invalidCandles}`);
+  console.log(`   - Duplicates removed: ${duplicatesFound}`);
+  console.log(`   - Final valid candles: ${finalCandles.length}`);
+  
+  return finalCandles;
+}
+
+// Keep the old function for backward compatibility
+async function fetchHistoricalData() {
+  return await fetchHistoricalDataWithValidation();
 }
 
 async function storeCandlesInRedis(candles) {
   const key = 'ETHUSD_HISTORICAL_CANDLES';
-  await redisClient.set(key, JSON.stringify(candles));
-  console.log(`✅ Stored ${candles.length} candles in Redis under key: ${key}`);
+  const ttlSeconds = 2 * 60 * 60; // 2 hours in seconds
+  await redisClient.setEx(key, ttlSeconds, JSON.stringify(candles));
+  console.log(`✅ Stored ${candles.length} candles in Redis under key: ${key} (TTL: 2 hours)`);
+}
+
+async function getCandlesFromRedis() {
+  const key = 'ETHUSD_HISTORICAL_CANDLES';
+  try {
+    const data = await redisClient.get(key);
+    if (data) {
+      const candles = JSON.parse(data);
+      console.log(`✅ Found ${candles.length} candles in Redis cache`);
+      return candles;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error reading from Redis:', error.message);
+    return null;
+  }
 }
 
 /**
@@ -344,12 +437,18 @@ async function scanTripleCandlePatterns(candles, detectors) {
 async function scanChartPatterns(candles, detectors) {
   const detections = [];
   
+  console.log(`    📊 Scanning ${detectors.length} chart pattern detectors...`);
+  
   for (const detector of detectors) {
     const windowSize = detector.minCandles || 50;
+    console.log(`      🔍 Checking ${detector.name} (window: ${windowSize})...`);
+    
+    let patternMatches = 0;
     for (let i = 0; i < candles.length - windowSize + 1; i++) {
       try {
         const result = detector.detect(candles, i, windowSize);
         if (result.match) {
+          patternMatches++;
           detections.push({
             name: detector.name,
             type: detector.type,
@@ -362,11 +461,14 @@ async function scanChartPatterns(candles, detectors) {
           });
         }
       } catch (error) {
-        // Skip problematic patterns
+        console.log(`        ❌ Error in ${detector.name}: ${error.message}`);
       }
     }
+    
+    console.log(`        ✅ ${detector.name}: ${patternMatches} matches`);
   }
   
+  console.log(`    📈 Total chart patterns detected: ${detections.length}`);
   return detections;
 }
 
@@ -776,7 +878,9 @@ module.exports = {
   runPatternBacktest,
   initializeRedis,
   fetchHistoricalData,
+  fetchHistoricalDataWithValidation,
   storeCandlesInRedis,
+  getCandlesFromRedis,
   loadPatternDetectors,
   scanAllPatterns,
   scanSingleCandlePatterns,
@@ -785,10 +889,20 @@ module.exports = {
   scanChartPatterns,
   generateCategoryReports,
   generateMainSummaryReport,
-  convertTimestampToLima
+  convertTimestampToLima,
+  parseArgs
 };
+
+// Parse command line arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  return {
+    force: args.includes('--force')
+  };
+}
 
 // Run if called directly
 if (require.main === module) {
-  runPatternBacktest().catch(console.error);
+  const args = parseArgs();
+  runPatternBacktest(args.force).catch(console.error);
 }
