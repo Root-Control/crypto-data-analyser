@@ -18,7 +18,7 @@ let redisClient = null;
  */
 
 async function runPatternBacktest(forceRefresh = false) {
-  console.log('🚀 Starting Enhanced Pattern Detection Backtest...');
+  console.log('Starting Enhanced Pattern Detection Backtest...');
   
   try {
     // STEP 1: Initialize Redis connection
@@ -43,7 +43,7 @@ async function runPatternBacktest(forceRefresh = false) {
       console.log('💾 Storing candles in Redis with 2-hour TTL...');
       await storeCandlesInRedis(candles);
     } else {
-      console.log('🚀 Using cached data, skipping API calls');
+      console.log('Using cached data, skipping API calls');
     }
     
     // STEP 5: Load pattern detectors
@@ -525,7 +525,7 @@ async function generateCategoryPDF(category, detections) {
   doc.fillColor('#2c3e50')
      .fontSize(16)
      .font('Helvetica-Bold')
-     .text('📊 SUMMARY STATISTICS', 50, y);
+     .text('SUMMARY STATISTICS', 50, y);
   
   y += 30;
   
@@ -554,7 +554,7 @@ async function generateCategoryPDF(category, detections) {
   doc.fillColor('#2c3e50')
      .fontSize(16)
      .font('Helvetica-Bold')
-     .text('🎯 PATTERN BREAKDOWN', 50, y);
+     .text('PATTERN BREAKDOWN', 50, y);
   
   y += 30;
   
@@ -604,7 +604,7 @@ async function generateCategoryPDF(category, detections) {
   doc.fillColor('#2c3e50')
      .fontSize(16)
      .font('Helvetica-Bold')
-     .text('📋 DETAILED DETECTIONS (Top 50)', 50, y);
+     .text('DETAILED DETECTIONS (Top 50)', 50, y);
   
   y += 30;
   
