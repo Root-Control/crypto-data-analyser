@@ -2,6 +2,7 @@
 // Basado en src/algorithms/basic-prediction.ts que simplemente llama a predictNextCandle
 
 function basicPrediction(historicalCandles, currentBook, minCandles = 3, constants = {}) {
+
   // Llamar exactamente igual que el servidor
   return predictNextCandle(historicalCandles, currentBook, minCandles, constants);
 }
@@ -232,7 +233,7 @@ function calculateClimaxPressure(candles) {
 // ANÁLISIS DE ORDER BOOK - Replicación EXACTA del servidor
 // ============================================================================
 
-function analyzeBookPressure(currentBook, historicalCandles) {
+function analyzeBookPressure(currentBook, historicalCandles, constants = {}) {
   // 1. Bid/Ask Imbalance (mejorado con análisis del último minuto)
   const bidAskImbalance = calculateBidAskImbalance(currentBook);
 
@@ -252,6 +253,7 @@ function analyzeBookPressure(currentBook, historicalCandles) {
   const momentumAlignment = calculateMomentumAlignmentWithLastMinute(
     currentBook,
     historicalCandles,
+    constants,
   );
 
   return {
@@ -322,15 +324,16 @@ function calculateLiquidityLevel(book) {
   return 0.1;
 }
 
-function calculateMomentumAlignmentWithLastMinute(book, candles) {
+function calculateMomentumAlignmentWithLastMinute(book, candles, constants = {}) {
   if (candles.length === 0) return 0;
 
   // Imbalance del último minuto (más relevante)
   const lastMinuteImbalance = candles[candles.length - 1]?.imbalance || 0;
   const bookImbalance = book.imbalance || 0;
 
-  // Imbalance promedio de últimos 3 minutos para contexto
-  const recentImbalances = candles.slice(-3).map((c) => c.imbalance || 0);
+  // Imbalance promedio de últimos N minutos para contexto
+  const flowRecentCandles = constants.FLOW_RECENT_CANDLES || 3;
+  const recentImbalances = candles.slice(-flowRecentCandles).map((c) => c.imbalance || 0);
   const avgRecentImbalance =
     recentImbalances.reduce((a, b) => a + b, 0) / recentImbalances.length;
 
@@ -356,10 +359,11 @@ function calculateMomentumAlignmentWithLastMinute(book, candles) {
 // ANÁLISIS DE VOLUME FLOW - Replicación EXACTA del servidor
 // ============================================================================
 
-function analyzeVolumeFlow(candles) {
+function analyzeVolumeFlow(candles, constants = {}) {
   if (candles.length < 2) return 0;
 
-  const recent = candles.slice(-3); // Últimos 3 minutos
+  const flowRecentCandles = constants.FLOW_RECENT_CANDLES || 3;
+  const recent = candles.slice(-flowRecentCandles); // Últimos N minutos
 
   // Calcular fuerza del flujo de volumen
   let flowStrength = 0;
@@ -385,8 +389,9 @@ function analyzeVolumeFlow(candles) {
 // ANÁLISIS DE CLIMAX - Replicación EXACTA del servidor
 // ============================================================================
 
-function analyzeClimaxPressure(candles) {
-  const recent = candles.slice(-5); // Últimos 5 minutos
+function analyzeClimaxPressure(candles, constants = {}) {
+  const climaxRecentCandles = constants.CLIMAX_RECENT_CANDLES || 5;
+  const recent = candles.slice(-climaxRecentCandles); // Últimos N minutos
 
   let climaxScore = 0;
   let validCandles = 0;
@@ -413,7 +418,7 @@ function analyzeClimaxPressure(candles) {
 // CÁLCULO FINAL DE PREDICCIÓN - Replicación EXACTA del servidor
 // ============================================================================
 
-function calculateFinalPrediction(momentum, bookPressure, flowScore, climaxScore) {
+function calculateFinalPrediction(momentum, bookPressure, flowScore, climaxScore, constants = {}) {
   // Ponderación de factores (optimizada para PnL máximo)
   const weights = {
     momentum: 0.45, // 45% - Momentum histórico (máximo peso)
@@ -452,9 +457,11 @@ function calculateFinalPrediction(momentum, bookPressure, flowScore, climaxScore
   // Solo hacer trade en señales MUY FUERTES (mayor PnL potencial)
   const isVeryStrongSignal = strongMomentum || (strongBook && strongFlow);
 
-  if (finalScore > 0.3 && isVeryStrongSignal)
+  const finalScoreThreshold = constants.FINAL_SCORE_THRESHOLD || 0.3;
+  
+  if (finalScore > finalScoreThreshold && isVeryStrongSignal)
     direction = 'UP'; // Solo señales muy fuertes
-  else if (finalScore < -0.3 && isVeryStrongSignal)
+  else if (finalScore < -finalScoreThreshold && isVeryStrongSignal)
     direction = 'DOWN'; // Solo señales muy fuertes
   else direction = 'SIDEWAYS';
 

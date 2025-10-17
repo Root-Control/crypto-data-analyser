@@ -35,6 +35,8 @@ const MIN_BLOCKS_FOR_SIMULATION = 3; // Mínimo de bloques para simulación (min
 // CONFIGURACIÓN DE CONEXIÓN Y LOGGING
 // ============================================================================
 const MONGODB_URI = 'mongodb://localhost:27017/crypto-data-analyser-v2';
+//const MONGODB_URI = 'mongodb://localhost:27017/data-analyser';
+
 const TOP_TRADES_COUNT = 5;         // Mostrar top 5 mejores/peores trades
 
 // ============================================================================
@@ -466,12 +468,18 @@ function shouldRemoveSubsequentBlocks(currentIndex, totalBlocks) {
 async function runBasicSimulation(
   showDetailedLogs = true, 
   config = {
+    FINAL_SCORE_THRESHOLD: FINAL_SCORE_THRESHOLD,
+    RECENT_CANDLES_MOMENTUM: RECENT_CANDLES_MOMENTUM,
+    CLIMAX_RECENT_CANDLES: CLIMAX_RECENT_CANDLES,
+    FLOW_RECENT_CANDLES: FLOW_RECENT_CANDLES,
     tpMultiplier: TP_MULTIPLIER,
     tpMaxPercent: TP_MAX_PERCENT,
     slPercent: SL_PERCENT,
     mongooseConnection: null,
   }
 ) {
+
+  console.log(config);
   
   try {
     if (showDetailedLogs) {
@@ -577,8 +585,15 @@ async function runBasicSimulation(
       // Obtener order book del último minuto del bloque actual
       const currentBook = currentBlock.analysis[currentBlock.analysis.length - 1]?.book || null;
 
-      // Generar predicción usando basicPrediction
-      const prediction = basicPrediction(historicalCandles, currentBook, 3);
+      // Generar predicción usando basicPrediction con parámetros del algoritmo
+      const algorithmParams = {
+        FINAL_SCORE_THRESHOLD: config.FINAL_SCORE_THRESHOLD,
+        RECENT_CANDLES_MOMENTUM: config.RECENT_CANDLES_MOMENTUM,
+        FLOW_RECENT_CANDLES: config.FLOW_RECENT_CANDLES,
+        CLIMAX_RECENT_CANDLES: config.CLIMAX_RECENT_CANDLES,
+      };
+
+      const prediction = basicPrediction(historicalCandles, currentBook, 3, algorithmParams);
 
       totalPredictions++;
 
@@ -636,6 +651,8 @@ async function runBasicSimulation(
 
     // Calcular estadísticas
     const totalTrades = trades.length;
+    const wonTrades = trades.filter(trade => trade.pnl > 0).length;
+    const lostTrades = trades.filter(trade => trade.pnl < 0).length;
     const correctTrades = trades.filter(t => t.actualDirection === t.direction).length;
     const accuracy = totalTrades > 0 ? (correctTrades / totalTrades) * 100 : 0;
     const totalPnL = trades.reduce((sum, t) => sum + t.pnl, 0);
@@ -754,10 +771,10 @@ async function runBasicSimulation(
     if (showDetailedLogs) {
       console.log(`💰 TOTAL GENERAL: P&L: $${totalPnL.toFixed(2)} | Precisión: ${accuracy.toFixed(2)}%`);
       console.log('');
-    } else {
-      // Solo mostrar precisión cuando showDetailedLogs es false
-      console.log(accuracy.toFixed(2));
-    }
+            } else {
+              // Mostrar precisión, P&L, trades ejecutados, ganados y perdidos cuando showDetailedLogs es false
+              console.log(`${accuracy.toFixed(2)} | $${totalPnL.toFixed(2)} | ${totalTrades}t | +${wonTrades} | -${lostTrades}`);
+            }
 
     // Top 5 mejores y peores trades (solo si showDetailedLogs es true)
     if (showDetailedLogs) {
@@ -785,23 +802,9 @@ async function runBasicSimulation(
   } catch (error) {
     console.error('❌ Error en la simulación:', error);
   } finally {
-    // Cerrar conexión a MongoDB de manera segura solo si no hay conexión existente
-    if (!config.mongooseConnection) {
-      try {
-        if (mongoose.connection.readyState === 1) {
-          // Esperar un momento para que las operaciones pendientes terminen
-          await new Promise(resolve => setTimeout(resolve, 100));
-          await mongoose.disconnect();
-          if (showDetailedLogs) {
-            console.log('🔌 Desconectado de MongoDB');
-          }
-        }
-      } catch (disconnectError) {
-        // Ignorar errores de desconexión
-        if (showDetailedLogs) {
-          console.log('🔌 Desconectado de MongoDB (con errores menores)');
-        }
-      }
+    // NO desconectar la conexión - mantenerla viva para las siguientes iteraciones
+    if (showDetailedLogs) {
+      console.log('🔌 Manteniendo conexión MongoDB compartida');
     }
   }
 }
