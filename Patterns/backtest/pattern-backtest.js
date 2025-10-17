@@ -8,7 +8,31 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const Redis = require('redis');
+
+/**
+ * Format date to YYYY-MM-DD HH:MM:SS (24h format)
+ */
+function formatDateTime24h(dateString) {
+  try {
+    // Parse the date string
+    const date = new Date(dateString);
+    
+    // Format to YYYY-MM-DD HH:MM:SS
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  } catch (error) {
+    // If parsing fails, return original string
+    return dateString;
+  }
+}
 const PDFDocument = require('pdfkit');
+const { backtestPatternDetections, generateBacktestStats, generateBacktestReport } = require('./pattern-backtester');
 
 // Redis client
 let redisClient = null;
@@ -41,7 +65,7 @@ async function runPatternBacktest(forceRefresh = false) {
       
       // STEP 4: Store in Redis with TTL
       console.log('💾 Storing candles in Redis with 2-hour TTL...');
-      await storeCandlesInRedis(candles);
+    await storeCandlesInRedis(candles);
     } else {
       console.log('Using cached data, skipping API calls');
     }
@@ -62,7 +86,11 @@ async function runPatternBacktest(forceRefresh = false) {
     console.log('📊 Generating main summary report...');
     await generateMainSummaryReport(detections, candles.length);
     
-    // STEP 9: Console summary
+    // STEP 9: Run backtesting for Marubozu pattern
+    console.log('🎯 Running backtesting for Marubozu pattern...');
+    await runMarubozuBacktest(detections, candles);
+    
+    // STEP 10: Console summary
     console.log('✅ Enhanced backtest completed successfully!');
     console.log('📊 Summary:');
     console.log(`Total patterns detected: ${detections.length}`);
@@ -392,13 +420,13 @@ async function scanSingleCandlePatterns(candles, detectors) {
           if (priority > bestPriority) {
             bestPriority = priority;
             bestMatch = {
-              name: detector.name,
-              type: detector.type,
-              index: i,
-              timestampLocal: convertTimestampToLima(candles[i].timestamp),
-              confidence: result.confidence,
-              meta: result.meta,
-              typicalPrediction: detector.spec.typicalPrediction,
+            name: detector.name,
+            type: detector.type,
+            index: i,
+            timestampLocal: convertTimestampToLima(candles[i].timestamp),
+            confidence: result.confidence,
+            meta: result.meta,
+            typicalPrediction: detector.spec.typicalPrediction,
               commonContext: detector.spec.commonContext,
               candle: candles[i]
             };
@@ -554,23 +582,14 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
   
   const categoryDir = path.join(__dirname, '..', 'Reports', category);
   
-  // For single-candle patterns, put files directly in category folder
-  // For other categories, create pattern subfolders
-  let filepath;
-  if (category === 'single-candle') {
-    if (!fs.existsSync(categoryDir)) {
-      fs.mkdirSync(categoryDir, { recursive: true });
-    }
-    const filename = `${patternName}.pdf`;
-    filepath = path.join(categoryDir, filename);
-  } else {
-    const patternDir = path.join(categoryDir, patternName);
-    if (!fs.existsSync(patternDir)) {
-      fs.mkdirSync(patternDir, { recursive: true });
-    }
-    const filename = `${patternName}-report.pdf`;
-    filepath = path.join(patternDir, filename);
+  // Create pattern subfolders for all categories including single-candle
+  const patternDir = path.join(categoryDir, patternName);
+  if (!fs.existsSync(patternDir)) {
+    fs.mkdirSync(patternDir, { recursive: true });
   }
+  
+  const filename = `${patternName}-report.pdf`;
+  const filepath = path.join(patternDir, filename);
   
   doc.pipe(fs.createWriteStream(filepath));
   
@@ -1235,6 +1254,372 @@ function parseArgs() {
   return {
     force: args.includes('--force')
   };
+}
+
+/**
+ * Run backtesting for Marubozu pattern
+ */
+async function runMarubozuBacktest(detections, allCandles) {
+  // Filter Marubozu detections
+  const marubozuDetections = detections.filter(d => d.name === 'marubozu');
+  
+  if (marubozuDetections.length === 0) {
+    console.log('❌ No Marubozu detections found for backtesting');
+    return;
+  }
+  
+  console.log(`🔍 Found ${marubozuDetections.length} Marubozu detections for backtesting`);
+  
+  // Run backtesting
+  const backtestResults = backtestPatternDetections(marubozuDetections, allCandles, {
+    stopLossPercent: 0.01, // 1%
+    takeProfitPercent: 0.01, // 1%
+    evaluationCandles: 5 // Evaluate next 5 candles
+  });
+  
+  // Generate statistics
+  const stats = generateBacktestStats(backtestResults);
+  
+  console.log(`📈 Backtest Results for Marubozu:`);
+  console.log(`   Total Trades: ${stats.total}`);
+  console.log(`   Wins: ${stats.wins} (${stats.winRate.toFixed(1)}%)`);
+  console.log(`   Losses: ${stats.losses} (${stats.lossRate.toFixed(1)}%)`);
+  console.log(`   Unknown: ${stats.unknowns} (${stats.unknownRate.toFixed(1)}%)`);
+  console.log(`   Total P&L: ${stats.totalPnL.toFixed(2)}%`);
+  console.log(`   Avg Win P&L: ${stats.avgWinPnL.toFixed(2)}%`);
+  console.log(`   Avg Loss P&L: ${stats.avgLossPnL.toFixed(2)}%`);
+  
+  // Generate backtest reports
+  await generateBacktestReport('marubozu', backtestResults, stats, allCandles);
+  
+  // Generate separate report only for UNKNOWN trades
+  const unknownResults = backtestResults.filter(r => r.result === 'UNKNOWN');
+  
+  if (unknownResults.length > 0) {
+    const unknownStats = generateBacktestStats(unknownResults);
+    await generateBacktestReport('marubozu-unknown', unknownResults, unknownStats, allCandles);
+    console.log(`✅ Generated UNKNOWN trades report: ${unknownResults.length} trades`);
+  }
+  
+  // Analyze losing patterns
+  analyzeLosingPatterns(backtestResults, allCandles);
+  
+  console.log('✅ Marubozu backtesting completed');
+}
+
+/**
+ * Analyze patterns in losing trades to understand why they failed
+ */
+function analyzeLosingPatterns(backtestResults, allCandles) {
+  console.log('\n🔍 ANALYZING LOSING PATTERNS...');
+  
+  // Filter losing trades
+  const losingTrades = backtestResults.filter(r => r.result === 'LOSS' || (r.result === 'UNKNOWN' && r.pnl < 0));
+  
+  if (losingTrades.length === 0) {
+    console.log('❌ No losing trades found to analyze');
+    return;
+  }
+  
+  console.log(`📊 Analyzing ${losingTrades.length} losing trades...`);
+  
+  // Analyze patterns
+  const analysis = {
+    immediateReversal: 0,
+    gradualDecline: 0,
+    falseBreakout: 0,
+    gapDown: 0,
+    consolidationBreakdown: 0,
+    volumeSpike: 0,
+    resistanceRejection: 0,
+    supportBreak: 0
+  };
+  
+  const detailedAnalysis = [];
+  
+  for (const trade of losingTrades) {
+    const signalIndex = trade.detection.index;
+    const signalCandle = allCandles[signalIndex];
+    
+    // Get previous 20 candles for analysis (context before the signal)
+    const previousCandles = [];
+    for (let i = 1; i <= 20; i++) {
+      if (signalIndex - i >= 0) {
+        previousCandles.push(allCandles[signalIndex - i]);
+      }
+    }
+    
+    if (previousCandles.length === 0) continue;
+    
+    const analysisResult = analyzeSingleLosingTrade(trade, signalCandle, previousCandles);
+    analysis[analysisResult.pattern]++;
+    
+    detailedAnalysis.push({
+      tradeIndex: trade.detection.index,
+      timestamp: trade.detection.timestampLocal,
+      pattern: analysisResult.pattern,
+      reason: analysisResult.reason,
+      details: analysisResult.details
+    });
+  }
+  
+  // Display results
+  console.log('\n📈 LOSING PATTERN ANALYSIS RESULTS:');
+  console.log('=====================================');
+  
+  const sortedPatterns = Object.entries(analysis)
+    .filter(([pattern, count]) => count > 0)
+    .sort(([,a], [,b]) => b - a);
+  
+  for (const [pattern, count] of sortedPatterns) {
+    const percentage = ((count / losingTrades.length) * 100).toFixed(1);
+    console.log(`📊 ${pattern.replace(/([A-Z])/g, ' $1').toUpperCase()}: ${count} trades (${percentage}%)`);
+  }
+  
+  // Show detailed analysis for top patterns
+  console.log('\n🔍 DETAILED ANALYSIS (Top 3 Patterns):');
+  const topPatterns = sortedPatterns.slice(0, 3);
+  
+  for (const [pattern] of topPatterns) {
+    const patternTrades = detailedAnalysis.filter(t => t.pattern === pattern);
+    console.log(`\n📋 ${pattern.replace(/([A-Z])/g, ' $1').toUpperCase()}:`);
+    
+    // Show first 3 examples
+    for (let i = 0; i < Math.min(3, patternTrades.length); i++) {
+      const trade = patternTrades[i];
+      console.log(`  ${i + 1}. Index ${trade.tradeIndex} (${formatDateTime24h(trade.timestamp)})`);
+      console.log(`     Reason: ${trade.reason}`);
+      console.log(`     Details: ${trade.details}`);
+    }
+  }
+  
+  console.log('\n💡 RECOMMENDATIONS:');
+  console.log('===================');
+  
+  if (analysis.immediateReversal > losingTrades.length * 0.3) {
+    console.log('⚠️  High immediate reversal rate - Consider waiting for confirmation candle');
+  }
+  
+  if (analysis.falseBreakout > losingTrades.length * 0.2) {
+    console.log('⚠️  Many false breakouts - Consider volume confirmation');
+  }
+  
+  if (analysis.resistanceRejection > losingTrades.length * 0.2) {
+    console.log('⚠️  High resistance rejection - Avoid entries near resistance levels');
+  }
+  
+  if (analysis.volumeSpike > losingTrades.length * 0.1) {
+    console.log('⚠️  Volume spikes causing losses - Consider volume-based filters');
+  }
+}
+
+/**
+ * Analyze a single losing trade to determine the failure pattern
+ * This analyzes PREVIOUS candles to identify risk conditions that could have been detected BEFORE entering
+ */
+function analyzeSingleLosingTrade(trade, signalCandle, previousCandles) {
+  const isBullish = trade.isBullish;
+  const entryPrice = trade.entryPrice;
+  
+  // Check for nearby resistance levels (for bullish trades)
+  if (isBullish) {
+    const nearbyResistance = findNearbyResistance(entryPrice, previousCandles);
+    if (nearbyResistance) {
+      return {
+        pattern: 'resistanceRejection',
+        reason: 'Entry near resistance level (detectable before trade)',
+        details: `Entry: $${entryPrice.toFixed(2)}, Resistance: $${nearbyResistance.toFixed(2)}, Distance: ${((nearbyResistance - entryPrice) / entryPrice * 100).toFixed(2)}%`
+      };
+    }
+  }
+  
+  // Check for nearby support levels (for bearish trades)
+  if (!isBullish) {
+    const nearbySupport = findNearbySupport(entryPrice, previousCandles);
+    if (nearbySupport) {
+      return {
+        pattern: 'supportBreak',
+        reason: 'Entry near support level (detectable before trade)',
+        details: `Entry: $${entryPrice.toFixed(2)}, Support: $${nearbySupport.toFixed(2)}, Distance: ${((entryPrice - nearbySupport) / entryPrice * 100).toFixed(2)}%`
+      };
+    }
+  }
+  
+  // Check for recent high volume (potential volatility risk)
+  const recentVolumeSpike = detectRecentVolumeSpike(signalCandle, previousCandles);
+  if (recentVolumeSpike) {
+    return {
+      pattern: 'volumeSpike',
+      reason: 'Recent volume spike detected (high volatility risk)',
+      details: `Volume spike: ${recentVolumeSpike.toFixed(1)}x average`
+    };
+  }
+  
+  // Check for immediate reversal pattern (weak momentum before entry)
+  const weakMomentum = detectWeakMomentum(signalCandle, previousCandles, isBullish);
+  if (weakMomentum) {
+    return {
+      pattern: 'immediateReversal',
+      reason: 'Weak momentum detected before entry',
+      details: `Momentum score: ${weakMomentum.toFixed(2)} (weak)`
+    };
+  }
+  
+  // Check for false breakout setup (price approaching breakout level)
+  const falseBreakoutSetup = detectFalseBreakoutSetup(entryPrice, previousCandles, isBullish);
+  if (falseBreakoutSetup) {
+    return {
+      pattern: 'falseBreakout',
+      reason: 'False breakout setup detected',
+      details: `Breakout level: $${falseBreakoutSetup.toFixed(2)}, Attempts: ${falseBreakoutSetup.attempts}`
+    };
+  }
+  
+  // Check for gradual decline in context
+  const decliningContext = detectDecliningContext(previousCandles, isBullish);
+  if (decliningContext) {
+    return {
+      pattern: 'gradualDecline',
+      reason: 'Declining context detected before entry',
+      details: `Decline rate: ${decliningContext.toFixed(2)}% over recent candles`
+    };
+  }
+  
+  // Default to consolidation breakdown
+  return {
+    pattern: 'consolidationBreakdown',
+    reason: 'Consolidation pattern without clear risk signals',
+    details: 'No clear risk pattern identified in previous context'
+  };
+}
+
+/**
+ * Find nearby resistance levels in previous candles
+ */
+function findNearbyResistance(price, previousCandles) {
+  const tolerance = price * 0.01; // 1% tolerance
+  
+  // Look for recent highs that could act as resistance
+  for (const candle of previousCandles.slice(0, 10)) { // Check last 10 candles
+    if (Math.abs(candle.high - price) <= tolerance && candle.high >= price) {
+      return candle.high;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find nearby support levels in previous candles
+ */
+function findNearbySupport(price, previousCandles) {
+  const tolerance = price * 0.01; // 1% tolerance
+  
+  // Look for recent lows that could act as support
+  for (const candle of previousCandles.slice(0, 10)) { // Check last 10 candles
+    if (Math.abs(candle.low - price) <= tolerance && candle.low <= price) {
+      return candle.low;
+    }
+  }
+  return null;
+}
+
+/**
+ * Detect recent volume spikes that could indicate high volatility
+ */
+function detectRecentVolumeSpike(signalCandle, previousCandles) {
+  if (!signalCandle.volume) return null;
+  
+  // Calculate average volume from previous candles
+  let totalVolume = 0;
+  let volumeCount = 0;
+  
+  for (const candle of previousCandles.slice(0, 10)) {
+    if (candle.volume) {
+      totalVolume += candle.volume;
+      volumeCount++;
+    }
+  }
+  
+  if (volumeCount === 0) return null;
+  
+  const avgVolume = totalVolume / volumeCount;
+  const currentVolumeRatio = signalCandle.volume / avgVolume;
+  
+  return currentVolumeRatio > 2.5 ? currentVolumeRatio : null; // 2.5x average volume
+}
+
+/**
+ * Detect weak momentum before entry
+ */
+function detectWeakMomentum(signalCandle, previousCandles, isBullish) {
+  // Check recent price action for weak momentum
+  let momentumScore = 0;
+  const recentCandles = previousCandles.slice(0, 5);
+  
+  for (let i = 0; i < recentCandles.length - 1; i++) {
+    const current = recentCandles[i];
+    const previous = recentCandles[i + 1];
+    
+    if (isBullish) {
+      momentumScore += (current.close - previous.close) / previous.close;
+    } else {
+      momentumScore += (previous.close - current.close) / previous.close;
+    }
+  }
+  
+  // Normalize momentum score
+  momentumScore = momentumScore / recentCandles.length;
+  
+  return momentumScore < 0.002 ? momentumScore : null; // Weak momentum threshold
+}
+
+/**
+ * Detect false breakout setup (multiple attempts at same level)
+ */
+function detectFalseBreakoutSetup(entryPrice, previousCandles, isBullish) {
+  const tolerance = entryPrice * 0.005; // 0.5% tolerance
+  let attempts = 0;
+  let breakoutLevel = null;
+  
+  // Look for multiple touches of similar levels
+  for (const candle of previousCandles.slice(0, 15)) {
+    if (isBullish) {
+      // For bullish, look for resistance levels
+      if (Math.abs(candle.high - entryPrice) <= tolerance && candle.high >= entryPrice) {
+        attempts++;
+        breakoutLevel = candle.high;
+      }
+    } else {
+      // For bearish, look for support levels
+      if (Math.abs(candle.low - entryPrice) <= tolerance && candle.low <= entryPrice) {
+        attempts++;
+        breakoutLevel = candle.low;
+      }
+    }
+  }
+  
+  return attempts >= 2 ? { level: breakoutLevel, attempts } : null;
+}
+
+/**
+ * Detect declining context before entry
+ */
+function detectDecliningContext(previousCandles, isBullish) {
+  if (previousCandles.length < 5) return null;
+  
+  // Calculate overall trend in previous candles
+  const firstCandle = previousCandles[previousCandles.length - 1]; // Oldest
+  const lastCandle = previousCandles[0]; // Most recent
+  
+  const totalMove = (lastCandle.close - firstCandle.close) / firstCandle.close;
+  
+  if (isBullish && totalMove < -0.01) { // Declining for bullish trade
+    return Math.abs(totalMove) * 100;
+  } else if (!isBullish && totalMove > 0.01) { // Rising for bearish trade
+    return totalMove * 100;
+  }
+  
+  return null;
 }
 
 // Run if called directly
