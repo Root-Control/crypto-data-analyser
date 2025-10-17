@@ -366,7 +366,8 @@ async function scanSingleCandlePatterns(candles, detectors) {
             confidence: result.confidence,
             meta: result.meta,
             typicalPrediction: detector.spec.typicalPrediction,
-            commonContext: detector.spec.commonContext
+            commonContext: detector.spec.commonContext,
+            candle: candles[i] // Add candle data
           });
         }
       } catch (error) {
@@ -394,7 +395,8 @@ async function scanDoubleCandlePatterns(candles, detectors) {
             confidence: result.confidence,
             meta: result.meta,
             typicalPrediction: detector.spec.typicalPrediction,
-            commonContext: detector.spec.commonContext
+            commonContext: detector.spec.commonContext,
+            candle: candles[i] // Add candle data
           });
         }
       } catch (error) {
@@ -422,7 +424,8 @@ async function scanTripleCandlePatterns(candles, detectors) {
             confidence: result.confidence,
             meta: result.meta,
             typicalPrediction: detector.spec.typicalPrediction,
-            commonContext: detector.spec.commonContext
+            commonContext: detector.spec.commonContext,
+            candle: candles[i] // Add candle data
           });
         }
       } catch (error) {
@@ -620,7 +623,7 @@ async function generateCategoryPDF(category, detections) {
     
     // Details in a nice box
     const boxY = y;
-    const boxHeight = 80;
+    const boxHeight = 95;
     
     doc.rect(70, boxY, 450, boxHeight)
        .fill('#f8f9fa')
@@ -629,11 +632,20 @@ async function generateCategoryPDF(category, detections) {
     doc.fillColor('#2c3e50')
        .fontSize(10)
        .font('Helvetica')
-       .text(`📅 Time: ${detection.timestampLocal}`, 80, boxY + 10);
+       .text(`Time: ${detection.timestampLocal}`, 80, boxY + 10);
     
-    doc.text(`📍 Index: ${detection.index}`, 80, boxY + 25);
-    doc.text(`🎯 Prediction: ${detection.typicalPrediction}`, 80, boxY + 40);
-    doc.text(`💡 Context: ${detection.commonContext}`, 80, boxY + 55);
+    doc.text(`Index: ${detection.index}`, 80, boxY + 25);
+    
+    // Add OHLC data if available
+    if (detection.candle) {
+      doc.text(`Open: $${detection.candle.open.toFixed(2)}`, 80, boxY + 40);
+      doc.text(`Close: $${detection.candle.close.toFixed(2)}`, 200, boxY + 40);
+      doc.text(`High: $${detection.candle.high.toFixed(2)}`, 320, boxY + 40);
+      doc.text(`Low: $${detection.candle.low.toFixed(2)}`, 440, boxY + 40);
+    }
+    
+    doc.text(`Prediction: ${detection.typicalPrediction}`, 80, boxY + 55);
+    doc.text(`Context: ${detection.commonContext}`, 80, boxY + 70);
     
     // Confidence with color coding
     const confPercent = (detection.confidence * 100).toFixed(1);
@@ -641,12 +653,12 @@ async function generateCategoryPDF(category, detections) {
     
     doc.fillColor(confColor)
        .font('Helvetica-Bold')
-       .text(`🎲 Confidence: ${confPercent}%`, 300, boxY + 25);
+       .text(`Confidence: ${confPercent}%`, 300, boxY + 55);
     
     y += boxHeight + 20;
     
     // Pagination
-    if (y > 600) {
+    if (y > 580) {
       doc.addPage();
       y = 50;
     }
