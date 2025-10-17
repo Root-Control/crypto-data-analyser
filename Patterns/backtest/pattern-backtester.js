@@ -222,12 +222,21 @@ function calculatePnL(entryPrice, exitPrice, isBullish) {
  */
 function backtestPatternDetections(detections, allCandles, options = {}) {
   const results = [];
-  let filteredCount = 0;
+  let volumeFilteredCount = 0;
+  let ratioFilteredCount = 0;
   
   for (const detection of detections) {
     // Apply volume filter: skip if signal candle has lower volume than previous
     if (!hasHigherVolumeThanPrevious(detection, allCandles)) {
-      filteredCount++;
+      volumeFilteredCount++;
+      // Skip this detection - don't include in backtest results
+      continue;
+    }
+    
+    // Apply volume ratio filter: skip if volume ratio < 1.40x
+    const volumeRatio = calculateVolumeRatio(detection, allCandles);
+    if (volumeRatio < 1.40) {
+      ratioFilteredCount++;
       // Skip this detection - don't include in backtest results
       continue;
     }
@@ -237,11 +246,14 @@ function backtestPatternDetections(detections, allCandles, options = {}) {
   }
   
   // Log filtering statistics
-  console.log(`📊 Volume Filter Applied:`);
+  const totalFiltered = volumeFilteredCount + ratioFilteredCount;
+  console.log(`📊 Volume Filters Applied:`);
   console.log(`   Total detections: ${detections.length}`);
-  console.log(`   Filtered out (low volume): ${filteredCount}`);
+  console.log(`   Filtered out (lower volume): ${volumeFilteredCount}`);
+  console.log(`   Filtered out (ratio < 1.40x): ${ratioFilteredCount}`);
+  console.log(`   Total filtered: ${totalFiltered}`);
   console.log(`   Remaining for backtest: ${results.length}`);
-  console.log(`   Filter rate: ${((filteredCount / detections.length) * 100).toFixed(1)}%`);
+  console.log(`   Filter rate: ${((totalFiltered / detections.length) * 100).toFixed(1)}%`);
   
   return results;
 }
@@ -514,7 +526,7 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
     doc.fillColor(winLossColor)
        .fontSize(9)
        .font('Helvetica-Bold')
-       .text(winLossText, 60, y + 60);
+       .text(winLossText, 60, y + 70);
     
     // Show evaluation info for main reports
     if (!patternName.includes('-unknown')) {
