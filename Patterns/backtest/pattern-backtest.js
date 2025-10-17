@@ -37,7 +37,7 @@ async function runPatternBacktest() {
     const detectors = await loadPatternDetectors();
     
     // STEP 5: Scan for patterns
-    console.log('🔎 Scanning for patterns in historical candles...');
+    console.log('🔎 Scanning for patterns in 20,000 historical candles...');
     const detections = await scanAllPatterns(candles, detectors);
     
     // STEP 6: Generate beautiful PDF reports by category
@@ -115,9 +115,9 @@ async function initializeRedis() {
 async function fetchHistoricalData() {
   const symbol = 'ETHUSDT';
   const interval = '15m';
-  const limit = 5000; // 5000 candles per request
-  const totalCandles = 30000; // Total target
-  const iterations = 6; // 6 iterations * 5000 = 30000
+  const limit = 1000; // 1000 candles per request (Binance limit)
+  const totalCandles = 20000; // Total target
+  const iterations = 20; // 20 iterations * 1000 = 20000
   
   let allCandles = [];
   let endTime = Date.now(); // Start from now
@@ -601,7 +601,7 @@ async function generateMainSummaryReport(detections, totalCandles) {
   doc.fillColor('#bdc3c7')
      .fontSize(12)
      .font('Helvetica')
-     .text('Comprehensive Analysis of ETHUSDT Historical Data', 50, 85);
+     .text('Comprehensive Analysis of 20,000 ETHUSDT Historical Candles', 50, 85);
   
   let y = 140;
   
