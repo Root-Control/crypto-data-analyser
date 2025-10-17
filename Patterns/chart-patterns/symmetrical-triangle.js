@@ -15,7 +15,7 @@ function detectSymmetricalTriangle(candles, index, windowSize = 25) {
 
 const spec = {
   name: "symmetrical-triangle",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 25,
   shapeOnly: true,
   description: "Converging support and resistance lines forming a triangle. Neutral continuation pattern.",

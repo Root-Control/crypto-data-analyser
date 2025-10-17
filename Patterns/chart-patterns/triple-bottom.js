@@ -15,7 +15,7 @@ function detectTripleBottom(candles, index, windowSize = 40) {
 
 const spec = {
   name: "triple-bottom",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 40,
   shapeOnly: true,
   description: "Three troughs at approximately the same price level. Strong bullish reversal pattern.",

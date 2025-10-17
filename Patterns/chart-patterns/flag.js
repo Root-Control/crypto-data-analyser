@@ -15,7 +15,7 @@ function detectFlag(candles, index, windowSize = 20) {
 
 const spec = {
   name: "flag",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 20,
   shapeOnly: true,
   description: "Small rectangular consolidation after a strong move, with parallel support and resistance lines. Continuation pattern.",

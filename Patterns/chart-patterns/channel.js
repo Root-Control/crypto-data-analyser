@@ -15,7 +15,7 @@ function detectChannel(candles, index, windowSize = 30) {
 
 const spec = {
   name: "channel",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 30,
   shapeOnly: true,
   description: "Parallel support and resistance lines forming a channel. Continuation pattern showing trend direction.",

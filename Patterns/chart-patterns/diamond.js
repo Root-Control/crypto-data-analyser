@@ -15,7 +15,7 @@ function detectDiamond(candles, index, windowSize = 30) {
 
 const spec = {
   name: "diamond",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 30,
   shapeOnly: true,
   description: "Symmetrical pattern with expanding then contracting price range forming diamond shape. Reversal pattern.",

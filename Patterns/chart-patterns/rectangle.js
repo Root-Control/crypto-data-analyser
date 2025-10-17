@@ -15,7 +15,7 @@ function detectRectangle(candles, index, windowSize = 20) {
 
 const spec = {
   name: "rectangle",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 20,
   shapeOnly: true,
   description: "Horizontal trading range with parallel support and resistance lines. Neutral continuation pattern.",

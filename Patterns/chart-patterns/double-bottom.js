@@ -15,7 +15,7 @@ function detectDoubleBottom(candles, index, windowSize = 30) {
 
 const spec = {
   name: "double-bottom",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 30,
   shapeOnly: true,
   description: "Two troughs at approximately the same price level with a peak between them. Bullish reversal pattern.",

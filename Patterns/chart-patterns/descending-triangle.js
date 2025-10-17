@@ -15,7 +15,7 @@ function detectDescendingTriangle(candles, index, windowSize = 25) {
 
 const spec = {
   name: "descending-triangle",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 25,
   shapeOnly: true,
   description: "Horizontal support line with descending resistance line forming a triangle. Bearish continuation pattern.",

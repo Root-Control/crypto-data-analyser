@@ -15,7 +15,7 @@ function detectPennant(candles, index, windowSize = 20) {
 
 const spec = {
   name: "pennant",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 20,
   shapeOnly: true,
   description: "Small triangular consolidation after a strong move, with converging support and resistance lines. Continuation pattern.",

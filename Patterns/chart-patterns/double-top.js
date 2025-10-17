@@ -15,7 +15,7 @@ function detectDoubleTop(candles, index, windowSize = 30) {
 
 const spec = {
   name: "double-top",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 30,
   shapeOnly: true,
   description: "Two peaks at approximately the same price level with a trough between them. Bearish reversal pattern.",

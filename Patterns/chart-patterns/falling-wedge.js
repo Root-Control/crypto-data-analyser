@@ -15,7 +15,7 @@ function detectFallingWedge(candles, index, windowSize = 25) {
 
 const spec = {
   name: "falling-wedge",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 25,
   shapeOnly: true,
   description: "Converging support and resistance lines both sloping downward. Bullish reversal pattern.",

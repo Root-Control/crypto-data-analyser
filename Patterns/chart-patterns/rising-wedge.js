@@ -15,7 +15,7 @@ function detectRisingWedge(candles, index, windowSize = 25) {
 
 const spec = {
   name: "rising-wedge",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 25,
   shapeOnly: true,
   description: "Converging support and resistance lines both sloping upward. Bearish reversal pattern.",

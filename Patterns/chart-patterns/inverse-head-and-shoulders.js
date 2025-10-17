@@ -15,7 +15,7 @@ function detectInverseHeadAndShoulders(candles, index, windowSize = 50) {
 
 const spec = {
   name: "inverse-head-and-shoulders",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 50,
   shapeOnly: true,
   description: "Three troughs with middle trough (head) lower than the two shoulders. Classic bullish reversal pattern.",

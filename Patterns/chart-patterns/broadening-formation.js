@@ -15,7 +15,7 @@ function detectBroadeningFormation(candles, index, windowSize = 30) {
 
 const spec = {
   name: "broadening-formation",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 30,
   shapeOnly: true,
   description: "Diverging support and resistance lines creating expanding price range. Volatility expansion pattern.",

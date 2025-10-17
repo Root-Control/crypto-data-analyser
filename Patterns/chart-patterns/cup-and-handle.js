@@ -15,7 +15,7 @@ function detectCupAndHandle(candles, index, windowSize = 40) {
 
 const spec = {
   name: "cup-and-handle",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 40,
   shapeOnly: true,
   description: "U-shaped cup followed by a small downward handle. Long-term bullish continuation pattern.",

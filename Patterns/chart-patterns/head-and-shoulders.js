@@ -15,7 +15,7 @@ function detectHeadAndShoulders(candles, index, windowSize = 50) {
 
 const spec = {
   name: "head-and-shoulders",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 50,
   shapeOnly: true,
   description: "Three peaks with middle peak (head) higher than the two shoulders. Classic bearish reversal pattern.",

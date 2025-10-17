@@ -15,7 +15,7 @@ function detectTripleTop(candles, index, windowSize = 40) {
 
 const spec = {
   name: "triple-top",
-  type: "chart-patterns",
+  type: "chart",
   minCandles: 40,
   shapeOnly: true,
   description: "Three peaks at approximately the same price level. Strong bearish reversal pattern.",
