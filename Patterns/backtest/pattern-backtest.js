@@ -390,7 +390,7 @@ async function generateCategoryPDF(category, detections) {
     margins: { top: 50, bottom: 50, left: 50, right: 50 }
   });
   
-  const reportsDir = path.join(__dirname, '..', '..', 'Reports');
+  const reportsDir = path.join(__dirname, '..', 'Reports');
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });
   }
@@ -570,7 +570,7 @@ async function generateCategoryPDF(category, detections) {
   }
   
   doc.end();
-  console.log(`✅ Generated ${category} report: Reports/${filename}`);
+  console.log(`✅ Generated ${category} report: Patterns/Reports/${filename}`);
 }
 
 async function generateMainSummaryReport(detections, totalCandles) {
@@ -579,7 +579,7 @@ async function generateMainSummaryReport(detections, totalCandles) {
     margins: { top: 50, bottom: 50, left: 50, right: 50 }
   });
   
-  const reportsDir = path.join(__dirname, '..', '..', 'Reports');
+  const reportsDir = path.join(__dirname, '..', 'Reports');
   const filepath = path.join(reportsDir, 'pattern-detection-summary.pdf');
   
   doc.pipe(fs.createWriteStream(filepath));
@@ -752,7 +752,7 @@ async function generateMainSummaryReport(detections, totalCandles) {
   }
   
   doc.end();
-  console.log('✅ Generated main summary report: Reports/pattern-detection-summary.pdf');
+  console.log('✅ Generated main summary report: Patterns/Reports/pattern-detection-summary.pdf');
 }
 
 /**
