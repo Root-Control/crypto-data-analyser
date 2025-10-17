@@ -638,19 +638,18 @@ async function generateCategoryPDF(category, detections) {
   
   y += 30;
   
-  // Detailed detections (first 50 for brevity)
+  // Detailed detections (all detections)
   doc.fillColor('#2c3e50')
      .fontSize(16)
      .font('Helvetica-Bold')
-     .text('DETAILED DETECTIONS (Top 50)', 50, y);
+     .text(`DETAILED DETECTIONS (All ${detections.length})`, 50, y);
   
   y += 30;
   
-  const limitedDetections = detections
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 50);
+  const sortedDetections = detections
+    .sort((a, b) => b.confidence - a.confidence);
   
-  limitedDetections.forEach((detection, index) => {
+  sortedDetections.forEach((detection, index) => {
     // Detection header
     doc.fillColor('#34495e')
        .fontSize(12)
