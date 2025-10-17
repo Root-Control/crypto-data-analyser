@@ -53,9 +53,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Small body with wicks on both sides, showing indecision between buyers and sellers.",
-  typicalPrediction: "indecision, potential reversal",
-  commonContext: "after trending moves, showing balance between buyers and sellers"
+  description: "Cuerpo pequeño con mechas largas, muestra indecisión.",
+  typicalPrediction: "indecisión",
+  commonContext: "en mercados laterales, muestra lucha entre compradores y vendedores"
 };
 
 module.exports = {

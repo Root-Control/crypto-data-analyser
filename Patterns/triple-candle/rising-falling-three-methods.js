@@ -18,9 +18,9 @@ const spec = {
   type: "triple-candle",
   minCandles: 3,
   shapeOnly: true,
-  description: "Three small opposite candles between two large candles in same direction. Continuation pattern.",
-  typicalPrediction: "continuation of original trend",
-  commonContext: "during strong trends, showing brief consolidation before trend resumption"
+  description: "Patrón de cinco velas que muestra pausa en la tendencia.",
+  typicalPrediction: "continuación después de pausa",
+  commonContext: "en tendencias fuertes, indica pausa temporal antes de continuar"
 };
 
 module.exports = {

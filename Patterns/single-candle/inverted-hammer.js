@@ -18,9 +18,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Small body at bottom with long upper wick, showing rejection of higher prices.",
-  typicalPrediction: "bullish reversal (with confirmation)",
-  commonContext: "at support levels or after downtrends, showing potential buying interest"
+  description: "Cuerpo pequeño abajo con mecha superior larga, muestra potencial de reversión alcista.",
+  typicalPrediction: "reversión alcista",
+  commonContext: "después de caídas o en soporte, indica que el precio quiere subir"
 };
 
 module.exports = {

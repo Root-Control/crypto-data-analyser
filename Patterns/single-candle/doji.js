@@ -67,9 +67,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Candle with open and close at nearly the same price, showing market indecision.",
-  typicalPrediction: "reversal or indecision",
-  commonContext: "at key support/resistance levels, showing market uncertainty"
+  description: "Cuerpo muy pequeño, indica indecisión en el mercado.",
+  typicalPrediction: "indecisión o reversión",
+  commonContext: "en niveles clave de soporte/resistencia, muestra incertidumbre del mercado"
 };
 
 module.exports = {

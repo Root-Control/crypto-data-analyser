@@ -58,9 +58,9 @@ const spec = {
   type: "double-candle",
   minCandles: 2,
   shapeOnly: true,
-  description: "Small second candle contained within the body of the first large candle. Reversal pattern.",
-  typicalPrediction: "reversal (weaker than engulfing)",
-  commonContext: "after strong moves, showing potential trend exhaustion and reversal"
+  description: "Una vela pequeña está dentro del cuerpo de la vela anterior grande.",
+  typicalPrediction: "reversión o pausa",
+  commonContext: "después de movimientos fuertes, indica que la tendencia se está agotando"
 };
 
 module.exports = {

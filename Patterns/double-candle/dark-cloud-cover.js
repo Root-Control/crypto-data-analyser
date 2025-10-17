@@ -80,9 +80,9 @@ const spec = {
   type: "double-candle",
   minCandles: 2,
   shapeOnly: true,
-  description: "Bearish candle that opens above previous bullish candle's high and closes below its midpoint. Bearish reversal pattern.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after uptrends or at resistance levels, showing strong selling pressure"
+  description: "Vela roja abre arriba de vela verde anterior y cierra en su mitad.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "después de subidas, indica que los vendedores están tomando control"
 };
 
 module.exports = {

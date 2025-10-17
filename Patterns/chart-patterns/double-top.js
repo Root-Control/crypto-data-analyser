@@ -75,9 +75,9 @@ const spec = {
   type: "chart",
   minCandles: 30,
   shapeOnly: true,
-  description: "Two peaks at approximately the same price level with a trough between them. Bearish reversal pattern.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after an uptrend, when price fails to break above resistance twice"
+  description: "Dos picos similares con valle entre ellos, patrón de reversión bajista.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "después de una tendencia alcista, cuando el precio no puede romper resistencia dos veces"
 };
 
 module.exports = {

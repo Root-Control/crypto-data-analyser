@@ -54,9 +54,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Long candle with no or very small wicks, showing strong directional momentum.",
-  typicalPrediction: "continuation of current trend",
-  commonContext: "during strong trending moves, showing clear directional bias"
+  description: "Cuerpo grande sin mechas, muestra fuerte dirección.",
+  typicalPrediction: "continuación fuerte",
+  commonContext: "en tendencias fuertes, muestra convicción en la dirección del precio"
 };
 
 module.exports = {

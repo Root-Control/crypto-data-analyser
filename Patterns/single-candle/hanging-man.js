@@ -63,9 +63,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Small body at top with long lower wick, showing potential weakness after uptrend.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after uptrends or at resistance levels, showing potential selling pressure"
+  description: "Cuerpo pequeño arriba con mecha inferior larga, muestra debilidad después de subidas.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "después de subidas o en resistencia, indica que el precio quiere bajar"
 };
 
 module.exports = {

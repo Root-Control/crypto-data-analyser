@@ -53,9 +53,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Doji with long upper wick and no lower wick, showing rejection of higher prices.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "at resistance levels, showing strong rejection of higher prices"
+  description: "Doji con mecha superior larga y sin mecha inferior, muestra rechazo a precios altos.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "en niveles de resistencia, muestra fuerte rechazo a precios más altos"
 };
 
 module.exports = {

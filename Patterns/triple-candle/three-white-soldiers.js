@@ -99,9 +99,9 @@ const spec = {
   type: "triple-candle",
   minCandles: 3,
   shapeOnly: true,
-  description: "Three consecutive bullish candles with progressively higher closes. Strong bullish continuation pattern.",
-  typicalPrediction: "bullish continuation",
-  commonContext: "during uptrends, showing strong and consistent buying pressure"
+  description: "Tres velas verdes consecutivas que suben progresivamente.",
+  typicalPrediction: "continuación alcista fuerte",
+  commonContext: "en tendencias alcistas, muestra fuerza sostenida de compradores"
 };
 
 module.exports = {

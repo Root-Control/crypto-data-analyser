@@ -89,9 +89,9 @@ const spec = {
   type: "triple-candle",
   minCandles: 3,
   shapeOnly: true,
-  description: "Three candles: bullish, small body (star), bearish. Strong bearish reversal pattern.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after uptrends, showing exhaustion of buying pressure and potential trend reversal"
+  description: "Verde → Doji → Roja, con gaps, indica fin de subida.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "después de subidas fuertes, indica que los vendedores están entrando"
 };
 
 module.exports = {

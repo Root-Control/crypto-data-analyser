@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 40,
   shapeOnly: true,
-  description: "Three troughs at approximately the same price level. Strong bullish reversal pattern.",
-  typicalPrediction: "bullish reversal",
-  commonContext: "after a downtrend, when price fails to break below support three times"
+  description: "Tres valles similares, patrón de reversión alcista.",
+  typicalPrediction: "reversión alcista",
+  commonContext: "después de intentos múltiples de romper soporte, indica debilidad bajista"
 };
 
 module.exports = {

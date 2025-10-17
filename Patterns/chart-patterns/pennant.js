@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 20,
   shapeOnly: true,
-  description: "Small triangular consolidation after a strong move, with converging support and resistance lines. Continuation pattern.",
-  typicalPrediction: "continuation of previous trend",
-  commonContext: "following a strong impulse move, showing brief triangular consolidation before resuming trend"
+  description: "Consolidación triangular después de un movimiento fuerte.",
+  typicalPrediction: "continuación de la tendencia",
+  commonContext: "después de movimientos fuertes, indica pausa antes de continuar en la misma dirección"
 };
 
 module.exports = {

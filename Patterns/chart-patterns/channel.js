@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 30,
   shapeOnly: true,
-  description: "Parallel support and resistance lines forming a channel. Continuation pattern showing trend direction.",
-  typicalPrediction: "continuation of trend within channel",
-  commonContext: "during trending markets, showing consistent price movement between parallel levels"
+  description: "Dos líneas paralelas que contienen el precio en una tendencia.",
+  typicalPrediction: "continuación en la dirección del canal",
+  commonContext: "en tendencias claras, indica que el precio respeta los límites del canal"
 };
 
 module.exports = {

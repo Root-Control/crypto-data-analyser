@@ -18,9 +18,9 @@ const spec = {
   type: "triple-candle",
   minCandles: 3,
   shapeOnly: true,
-  description: "Second candle engulfs first, third candle confirms direction. Strong reversal pattern.",
-  typicalPrediction: "reversal (direction depends on engulfing direction)",
-  commonContext: "at trend extremes, showing strong reversal momentum with confirmation"
+  description: "Tres velas donde la del medio engulle a las otras dos.",
+  typicalPrediction: "reversión fuerte",
+  commonContext: "en cambios de tendencia, muestra que una dirección está dominando"
 };
 
 module.exports = {

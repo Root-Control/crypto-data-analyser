@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 30,
   shapeOnly: true,
-  description: "Diverging support and resistance lines creating expanding price range. Volatility expansion pattern.",
-  typicalPrediction: "increased volatility, potential reversal",
-  commonContext: "during high volatility periods, showing expanding price swings and market uncertainty"
+  description: "Dos líneas divergentes que amplían el rango, indica volatilidad creciente.",
+  typicalPrediction: "ruptura en cualquier dirección",
+  commonContext: "en mercados volátiles, indica que la incertidumbre está aumentando"
 };
 
 module.exports = {

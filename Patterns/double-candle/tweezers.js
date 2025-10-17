@@ -60,9 +60,9 @@ const spec = {
   type: "double-candle",
   minCandles: 2,
   shapeOnly: true,
-  description: "Two candles with similar highs (tweezers top) or lows (tweezers bottom). Reversal pattern.",
-  typicalPrediction: "reversal (tweezers top = bearish, tweezers bottom = bullish)",
-  commonContext: "at key support/resistance levels, showing rejection at specific price levels"
+  description: "Dos velas con altos o bajos similares, forman resistencia o soporte.",
+  typicalPrediction: "reversión en el nivel",
+  commonContext: "en niveles importantes, muestra que el precio respeta ese nivel"
 };
 
 module.exports = {

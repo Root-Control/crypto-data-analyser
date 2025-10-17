@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 40,
   shapeOnly: true,
-  description: "U-shaped cup followed by a small downward handle. Long-term bullish continuation pattern.",
-  typicalPrediction: "bullish continuation",
-  commonContext: "after a significant decline, showing consolidation and potential resumption of uptrend"
+  description: "Forma de taza con asa, patrón de continuación alcista.",
+  typicalPrediction: "ruptura alcista",
+  commonContext: "después de correcciones, indica que el precio está preparándose para subir"
 };
 
 module.exports = {

@@ -72,9 +72,9 @@ const spec = {
   type: "chart",
   minCandles: 25,
   shapeOnly: true,
-  description: "Horizontal resistance line with ascending support line forming a triangle. Bullish continuation pattern.",
-  typicalPrediction: "bullish continuation",
-  commonContext: "during an uptrend, showing increasing buying pressure"
+  description: "Línea de resistencia horizontal con línea de soporte ascendente.",
+  typicalPrediction: "ruptura alcista",
+  commonContext: "en tendencias alcistas, indica que los compradores están ganando fuerza"
 };
 
 module.exports = {

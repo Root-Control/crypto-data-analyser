@@ -18,9 +18,9 @@ const spec = {
   type: "triple-candle",
   minCandles: 3,
   shapeOnly: true,
-  description: "Three candles with gap and hold pattern. Continuation pattern showing trend strength.",
-  typicalPrediction: "continuation of trend",
-  commonContext: "during strong trends, showing sustained directional momentum with minimal pullback"
+  description: "Patrón de cuatro velas que muestra consolidación en tendencia alcista.",
+  typicalPrediction: "continuación alcista",
+  commonContext: "en tendencias alcistas, indica pausa antes de continuar subiendo"
 };
 
 module.exports = {

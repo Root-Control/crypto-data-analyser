@@ -72,9 +72,9 @@ const spec = {
   type: "chart",
   minCandles: 25,
   shapeOnly: true,
-  description: "Horizontal support line with descending resistance line forming a triangle. Bearish continuation pattern.",
-  typicalPrediction: "bearish continuation",
-  commonContext: "during a downtrend, showing increasing selling pressure"
+  description: "Línea de soporte horizontal con línea de resistencia descendente.",
+  typicalPrediction: "ruptura bajista",
+  commonContext: "en tendencias bajistas, indica que los vendedores están ganando fuerza"
 };
 
 module.exports = {

@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 30,
   shapeOnly: true,
-  description: "Symmetrical pattern with expanding then contracting price range forming diamond shape. Reversal pattern.",
-  typicalPrediction: "reversal (direction depends on breakout)",
-  commonContext: "during high volatility periods, showing market indecision and potential trend change"
+  description: "Forma de diamante, patrón de reversión.",
+  typicalPrediction: "reversión de tendencia",
+  commonContext: "al final de tendencias largas, indica que la dirección está cambiando"
 };
 
 module.exports = {

@@ -61,9 +61,9 @@ const spec = {
   type: "double-candle",
   minCandles: 2,
   shapeOnly: true,
-  description: "Second candle completely engulfs the body of the first candle. Strong reversal pattern.",
-  typicalPrediction: "reversal (bullish if bullish engulfing, bearish if bearish engulfing)",
-  commonContext: "at trend extremes or key support/resistance levels, showing strong reversal momentum"
+  description: "Una vela grande 'engulle' completamente a la vela anterior pequeña.",
+  typicalPrediction: "reversión (alcista si verde engulle roja, bajista si roja engulle verde)",
+  commonContext: "al final de una tendencia, indica cambio fuerte en el momentum"
 };
 
 module.exports = {

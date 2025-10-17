@@ -67,9 +67,9 @@ const spec = {
   type: "chart",
   minCandles: 50,
   shapeOnly: true,
-  description: "Three peaks with middle peak (head) higher than the two shoulders. Classic bearish reversal pattern.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after an uptrend near resistance, indicating potential trend reversal"
+  description: "Tres picos donde el del medio es más alto, patrón de reversión bajista.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "al final de tendencias alcistas largas, indica que la subida está terminando"
 };
 
 module.exports = {

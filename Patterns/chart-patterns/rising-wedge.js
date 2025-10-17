@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 25,
   shapeOnly: true,
-  description: "Converging support and resistance lines both sloping upward. Bearish reversal pattern.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after an uptrend, showing weakening momentum and potential trend reversal"
+  description: "Dos líneas ascendentes que convergen, patrón de reversión bajista.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "después de subidas largas, indica que la fuerza alcista se está agotando"
 };
 
 module.exports = {

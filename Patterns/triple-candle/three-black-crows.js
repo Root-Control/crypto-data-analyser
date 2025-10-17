@@ -99,9 +99,9 @@ const spec = {
   type: "triple-candle",
   minCandles: 3,
   shapeOnly: true,
-  description: "Three consecutive bearish candles with progressively lower closes. Strong bearish continuation pattern.",
-  typicalPrediction: "bearish continuation",
-  commonContext: "during downtrends, showing strong and consistent selling pressure"
+  description: "Tres velas rojas consecutivas que bajan progresivamente.",
+  typicalPrediction: "continuación bajista fuerte",
+  commonContext: "en tendencias bajistas, muestra fuerza sostenida de vendedores"
 };
 
 module.exports = {

@@ -67,9 +67,9 @@ const spec = {
   type: "chart",
   minCandles: 50,
   shapeOnly: true,
-  description: "Three troughs with middle trough (head) lower than the two shoulders. Classic bullish reversal pattern.",
-  typicalPrediction: "bullish reversal",
-  commonContext: "after a downtrend near support, indicating potential trend reversal"
+  description: "Tres valles donde el del medio es más bajo, patrón de reversión alcista.",
+  typicalPrediction: "reversión alcista",
+  commonContext: "al final de tendencias bajistas largas, indica que la caída está terminando"
 };
 
 module.exports = {

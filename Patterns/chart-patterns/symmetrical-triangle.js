@@ -76,9 +76,9 @@ const spec = {
   type: "chart",
   minCandles: 25,
   shapeOnly: true,
-  description: "Converging support and resistance lines forming a triangle. Neutral continuation pattern.",
-  typicalPrediction: "continuation (direction depends on breakout)",
-  commonContext: "during consolidation, showing balance between buyers and sellers"
+  description: "Líneas de soporte y resistencia que convergen, indica consolidación.",
+  typicalPrediction: "ruptura en cualquier dirección",
+  commonContext: "en mercados laterales, indica que el precio está comprimiéndose para una ruptura"
 };
 
 module.exports = {

@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 20,
   shapeOnly: true,
-  description: "Horizontal trading range with parallel support and resistance lines. Neutral continuation pattern.",
-  typicalPrediction: "continuation (direction depends on breakout)",
-  commonContext: "during consolidation, showing balance between buyers and sellers at specific levels"
+  description: "Rango lateral con soporte y resistencia claros.",
+  typicalPrediction: "ruptura en cualquier dirección",
+  commonContext: "en mercados laterales, indica que el precio está atrapado entre dos niveles"
 };
 
 module.exports = {

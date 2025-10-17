@@ -75,9 +75,9 @@ const spec = {
   type: "chart",
   minCandles: 30,
   shapeOnly: true,
-  description: "Two troughs at approximately the same price level with a peak between them. Bullish reversal pattern.",
-  typicalPrediction: "bullish reversal",
-  commonContext: "after a downtrend, when price fails to break below support twice"
+  description: "Dos valles similares con pico entre ellos, patrón de reversión alcista.",
+  typicalPrediction: "reversión alcista",
+  commonContext: "después de una tendencia bajista, cuando el precio no puede romper soporte dos veces"
 };
 
 module.exports = {

@@ -18,9 +18,9 @@ const spec = {
   type: "chart",
   minCandles: 40,
   shapeOnly: true,
-  description: "Three peaks at approximately the same price level. Strong bearish reversal pattern.",
-  typicalPrediction: "bearish reversal",
-  commonContext: "after an uptrend, when price fails to break above resistance three times"
+  description: "Tres picos similares, patrón de reversión bajista.",
+  typicalPrediction: "reversión bajista",
+  commonContext: "después de intentos múltiples de romper resistencia, indica debilidad alcista"
 };
 
 module.exports = {

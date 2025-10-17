@@ -18,9 +18,9 @@ const spec = {
   type: "single-candle",
   minCandles: 1,
   shapeOnly: true,
-  description: "Doji with long upper and lower wicks, showing high volatility and indecision.",
-  typicalPrediction: "high volatility, potential reversal",
-  commonContext: "during high volatility periods, showing extreme market indecision"
+  description: "Doji con mechas largas arriba y abajo, muestra máxima indecisión.",
+  typicalPrediction: "indecisión extrema",
+  commonContext: "en puntos de inflexión del mercado, muestra máxima incertidumbre"
 };
 
 module.exports = {
