@@ -80,8 +80,8 @@ function calculateVolumeRatio(detection, allCandles) {
  */
 function backtestPattern(detection, allCandles, options = {}) {
   const {
-    stopLossPercent = 0.01, // 1%
-    takeProfitPercent = 0.01, // 1%
+    stopLossPercent = 0.0085, // 0.85%
+    takeProfitPercent = 0.01105, // 1.105% (1.3 * 0.85%)
     evaluationCandles = 10 // Evaluate next 10 candles
   } = options;
 
@@ -332,17 +332,17 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
   
   // Customize title based on report type
   let title = `${patternName.toUpperCase()} BACKTEST REPORT`;
-  let subtitle = `Pattern Performance Analysis with 1% Stop Loss & Take Profit (5 candles evaluation)`;
+  let subtitle = `Pattern Performance Analysis with 0.85% Stop Loss & 1.105% Take Profit (5 candles evaluation)`;
   
   if (patternName.includes('-win')) {
     title = `${patternName.replace('-win', '').toUpperCase()} WINNING TRADES`;
-    subtitle = `Successful trades that hit Take Profit (1%)`;
+    subtitle = `Successful trades that hit Take Profit (1.105%)`;
   } else if (patternName.includes('-loss')) {
     title = `${patternName.replace('-loss', '').toUpperCase()} LOSING TRADES`;
-    subtitle = `Failed trades that hit Stop Loss (1%)`;
+    subtitle = `Failed trades that hit Stop Loss (0.85%)`;
   } else if (patternName.includes('-unknown')) {
     title = `${patternName.replace('-unknown', '').toUpperCase()} UNKNOWN TRADES`;
-    subtitle = `Trades that didn't reach Stop Loss or Take Profit in 5 candles`;
+    subtitle = `Trades that didn't reach Stop Loss (0.85%) or Take Profit (1.105%) in 5 candles`;
   }
   
   doc.fillColor('#ffffff')
