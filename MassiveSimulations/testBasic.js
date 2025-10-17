@@ -2,6 +2,18 @@ const mongoose = require('mongoose');
 const CandleAnalyst = require('./database/candleAnalyst');
 const { basicPrediction } = require('./algorithms/basicPrediction');
 
+const useOptimalConfig = true;
+
+const optimalConfig = {
+  TP_MULTIPLIER: 1.2,         
+  TP_MAX_PERCENT: 0.005,       
+  SL_PERCENT: 0.002,          
+  FINAL_SCORE_THRESHOLD: 0.4,       
+  RECENT_CANDLES_MOMENTUM: 15,       
+  FLOW_RECENT_CANDLES: 3,           
+  CLIMAX_RECENT_CANDLES: 7,         
+}
+
 // ============================================================================
 // TODAS LAS CONSTANTES DEL SISTEMA - CONFIGURACIÓN CENTRALIZADA
 // ============================================================================
@@ -13,13 +25,14 @@ const SYMBOL = 'ETHUSDT';
 const CAPITAL = 400;
 const LEVERAGE = 10;
 
+
 // ============================================================================
 // CONFIGURACIÓN DE TRADING
 // ============================================================================
-const TP_MULTIPLIER = 1.2;          // Multiplicador de Take Profit [1.0, 1.1, 1.2, 1.5, 2.0, 3.0]
-const TP_MAX_PERCENT = 0.025;       // Take Profit máximo [0.005, 0.01, 0.015, 0.025, 0.05, 0.1]
-const SL_PERCENT = 0.008;           // Stop Loss [0.002, 0.005, 0.008, 0.01, 0.02, 0.05]
-const MOVEMENT_THRESHOLD = 0.2;     // Umbral de movimiento para clasificar dirección
+const TP_MULTIPLIER = useOptimalConfig ? optimalConfig.TP_MULTIPLIER: 1.2;          // Multiplicador de Take Profit [1.0, 1.1, 1.2, 1.5, 2.0, 3.0]
+const TP_MAX_PERCENT = useOptimalConfig ? optimalConfig.TP_MAX_PERCENT: 0.005;       // Take Profit máximo [0.005, 0.01, 0.015, 0.025, 0.05, 0.1]
+const SL_PERCENT = useOptimalConfig ? optimalConfig.SL_PERCENT: 0.002;           // Stop Loss [0.002, 0.005, 0.008, 0.01, 0.02, 0.05]
+const MOVEMENT_THRESHOLD =  0.2;     // Umbral de movimiento para clasificar dirección
 
 // ============================================================================
 // CONFIGURACIÓN DE FILTRADO DE DATOS
@@ -77,14 +90,22 @@ const STRONG_MOMENTUM_THRESHOLD = 0.4;    // Señal muy fuerte de momentum
 const STRONG_BOOK_THRESHOLD = 0.3;        // Order book muy sesgado
 const STRONG_FLOW_THRESHOLD = 0.25;       // Flujo de volumen intenso
 
+
+
+  //const FINAL_SCORE_THRESHOLD =   [0.2, 0.3, 0.4, 0.5];
+  //const RECENT_CANDLES_MOMENTUM = [5, 10, 15, 20];    
+  //const FLOW_RECENT_CANDLES =     [2, 3, 5, 7];          
+  //const CLIMAX_RECENT_CANDLES =   [3, 5, 7, 10];       
+    
+
 // Umbrales de decisión
-const FINAL_SCORE_THRESHOLD = 0.3;        // Umbral para UP/DOWN vs SIDEWAYS
+const FINAL_SCORE_THRESHOLD = 0.4;        // Umbral para UP/DOWN vs SIDEWAYS
 
 // Configuración de análisis temporal
-const RECENT_CANDLES_MOMENTUM = 10;       // Últimos N minutos para momentum
+const RECENT_CANDLES_MOMENTUM = 15;       // Últimos N minutos para momentum
 const SUPPORT_RESISTANCE_CANDLES = 30;    // Últimos N velas para soporte/resistencia
 const FLOW_RECENT_CANDLES = 3;            // Últimos N minutos para volume flow
-const CLIMAX_RECENT_CANDLES = 5;          // Últimos N minutos para climax
+const CLIMAX_RECENT_CANDLES = 7;          // Últimos N minutos para climax
 
 // Configuración de soporte/resistencia
 const SUPPORT_TOLERANCE = 1.002;          // Tolerancia de soporte (0.2%)
@@ -478,9 +499,6 @@ async function runBasicSimulation(
     mongooseConnection: null,
   }
 ) {
-
-  console.log(config);
-  
   try {
     if (showDetailedLogs) {
       console.log('🚀 Iniciando simulación basicPrediction...');
@@ -816,4 +834,4 @@ module.exports = { runBasicSimulation };
 // Para logs detallados: runBasicSimulation(true)
 // Para logs simples: runBasicSimulation(false)
 // Con configuración personalizada: runBasicSimulation(true, { tpMultiplier: 1.5, tpMaxPercent: 0.03, slPercent: 0.01 })
-runBasicSimulation(false);
+runBasicSimulation(true);

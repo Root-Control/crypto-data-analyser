@@ -52,6 +52,15 @@ let bestPnL = { value: 0, accuracy: 0, config: null, tradesExecuted: 0 };
     const tpMaxPercent = 0.005;  // Mejor encontrado
     const slPercent = 0.002;     // Mejor encontrado     
 
+
+/*  
+    #ALGORITMO 1
+    const tpMultiplier = 1.2;
+    const tpMaxPercent =  0.025;
+    const slPercent =0.008;    */
+
+    
+
     for (let i = 0; i < FINAL_SCORE_THRESHOLD.length; i++) {
       for (let j = 0; j < RECENT_CANDLES_MOMENTUM.length; j++) {
         for (let k = 0; k < FLOW_RECENT_CANDLES.length; k++) {
