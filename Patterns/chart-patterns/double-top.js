@@ -72,7 +72,7 @@ function detectDoubleTop(candles, index, windowSize = 30) {
 
 const spec = {
   name: "double-top",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 30,
   shapeOnly: true,
   description: "Dos picos similares con valle entre ellos, patrón de reversión bajista.",

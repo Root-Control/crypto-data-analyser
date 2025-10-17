@@ -64,7 +64,7 @@ function detectInverseHeadAndShoulders(candles, index, windowSize = 50) {
 
 const spec = {
   name: "inverse-head-and-shoulders",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 50,
   shapeOnly: true,
   description: "Tres valles donde el del medio es más bajo, patrón de reversión alcista.",

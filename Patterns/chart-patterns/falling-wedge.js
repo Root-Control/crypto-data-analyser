@@ -15,7 +15,7 @@ function detectFallingWedge(candles, index, windowSize = 25) {
 
 const spec = {
   name: "falling-wedge",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 25,
   shapeOnly: true,
   description: "Dos líneas descendentes que convergen, patrón de reversión alcista.",

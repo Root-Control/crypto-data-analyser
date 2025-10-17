@@ -15,7 +15,7 @@ function detectDiamond(candles, index, windowSize = 30) {
 
 const spec = {
   name: "diamond",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 30,
   shapeOnly: true,
   description: "Forma de diamante, patrón de reversión.",

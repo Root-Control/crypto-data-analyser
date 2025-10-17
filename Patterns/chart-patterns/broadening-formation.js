@@ -15,7 +15,7 @@ function detectBroadeningFormation(candles, index, windowSize = 30) {
 
 const spec = {
   name: "broadening-formation",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 30,
   shapeOnly: true,
   description: "Dos líneas divergentes que amplían el rango, indica volatilidad creciente.",

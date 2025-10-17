@@ -15,7 +15,7 @@ function detectTripleTop(candles, index, windowSize = 40) {
 
 const spec = {
   name: "triple-top",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 40,
   shapeOnly: true,
   description: "Tres picos similares, patrón de reversión bajista.",

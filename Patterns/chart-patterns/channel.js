@@ -15,7 +15,7 @@ function detectChannel(candles, index, windowSize = 30) {
 
 const spec = {
   name: "channel",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 30,
   shapeOnly: true,
   description: "Dos líneas paralelas que contienen el precio en una tendencia.",

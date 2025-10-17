@@ -69,7 +69,7 @@ function detectDescendingTriangle(candles, index, windowSize = 25) {
 
 const spec = {
   name: "descending-triangle",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 25,
   shapeOnly: true,
   description: "Línea de soporte horizontal con línea de resistencia descendente.",

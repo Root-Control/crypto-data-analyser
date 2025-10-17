@@ -15,7 +15,7 @@ function detectCupAndHandle(candles, index, windowSize = 40) {
 
 const spec = {
   name: "cup-and-handle",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 40,
   shapeOnly: true,
   description: "Forma de taza con asa, patrón de continuación alcista.",

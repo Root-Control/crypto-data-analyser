@@ -134,12 +134,17 @@ async function fetchHistoricalDataWithValidation() {
   const iterations = 20; // 20 iterations * 1000 = 20000
   
   let allCandles = [];
-  let endTime = Date.now(); // Start from now
-  let lastTimestamp = null;
   let duplicatesFound = 0;
   let invalidCandles = 0;
   
-  console.log(`📈 Fetching ${totalCandles} candles in ${iterations} batches with temporal validation...`);
+  // Get current time in Peru (GMT-5)
+  const nowPeru = new Date();
+  const peruOffset = -5 * 60; // Peru is GMT-5
+  const peruTime = new Date(nowPeru.getTime() + (peruOffset * 60 * 1000));
+  let endTime = peruTime.getTime(); // Start from current Peru time
+  
+  console.log(`🇵🇪 Starting from current Peru time: ${peruTime.toISOString()}`);
+  console.log(`📈 Fetching ${totalCandles} candles in ${iterations} batches...`);
   
   for (let i = 0; i < iterations; i++) {
     console.log(`  Batch ${i + 1}/${iterations}...`);
@@ -164,20 +169,13 @@ async function fetchHistoricalDataWithValidation() {
         openTime: new Date(parseInt(kline[0]))
       }));
       
-      // Validate and filter candles
+      // Simple validation - just check OHLC validity, no temporal validation yet
       const validCandles = [];
-      let batchLastTimestamp = null;
       
       for (const candle of rawCandles) {
         // Validate candle data
         if (!candle.open || !candle.high || !candle.low || !candle.close || !candle.timestamp) {
           invalidCandles++;
-          continue;
-        }
-        
-        // Check for temporal duplicates within this batch only
-        if (batchLastTimestamp && candle.timestamp <= batchLastTimestamp) {
-          duplicatesFound++;
           continue;
         }
         
@@ -189,15 +187,18 @@ async function fetchHistoricalDataWithValidation() {
         }
         
         validCandles.push(candle);
-        batchLastTimestamp = candle.timestamp;
       }
       
-      // Reverse to get chronological order (oldest first)
-      allCandles = validCandles.reverse().concat(allCandles);
+      // Add all valid candles to our array (we'll sort later)
+      allCandles = allCandles.concat(validCandles);
       
-      // Set endTime for next batch (go backward in time)
+      // Set endTime for next batch using the oldest candle from this batch
       if (validCandles.length > 0) {
-        endTime = validCandles[0].timestamp - 1;
+        // Find the oldest candle (smallest timestamp) in this batch
+        const oldestCandle = validCandles.reduce((oldest, current) => 
+          current.timestamp < oldest.timestamp ? current : oldest
+        );
+        endTime = oldestCandle.timestamp - 1;
       }
       
       console.log(`    ✅ Fetched ${validCandles.length} valid candles (${rawCandles.length - validCandles.length} filtered)`);
@@ -219,7 +220,7 @@ async function fetchHistoricalDataWithValidation() {
   // Sort all candles by timestamp (oldest first)
   allCandles.sort((a, b) => a.timestamp - b.timestamp);
   
-  // Remove only exact timestamp duplicates (not sequential validation)
+  // Remove only exact timestamp duplicates
   const finalCandles = [];
   const seenTimestamps = new Set();
   
@@ -232,11 +233,11 @@ async function fetchHistoricalDataWithValidation() {
     }
   }
   
-  console.log(`✅ Total candles fetched: ${finalCandles.length}`);
+  console.log(`✅ Total candles fetched: ${allCandles.length}`);
   console.log(`📊 Quality report:`);
   console.log(`   - Invalid candles filtered: ${invalidCandles}`);
-  console.log(`   - Duplicates removed: ${duplicatesFound}`);
-  console.log(`   - Final valid candles: ${finalCandles.length}`);
+  console.log(`   - Exact duplicates removed: ${duplicatesFound}`);
+  console.log(`   - Final unique candles: ${finalCandles.length}`);
   
   return finalCandles;
 }
@@ -498,7 +499,8 @@ async function scanChartPatterns(candles, detectors) {
             confidence: result.confidence,
             meta: result.meta,
             typicalPrediction: detector.spec.typicalPrediction,
-            commonContext: detector.spec.commonContext
+            commonContext: detector.spec.commonContext,
+            candle: candles[i] // Add candle data for chart patterns
           });
         }
       } catch (error) {
@@ -514,19 +516,300 @@ async function scanChartPatterns(candles, detectors) {
 }
 
 /**
- * Beautiful PDF Generation Functions
+ * Beautiful PDF Generation Functions - Individual Pattern Reports
  */
 async function generateCategoryReports(detections) {
   const categories = ['single-candle', 'double-candle', 'triple-candle', 'chart-patterns'];
   
+  // Generate individual pattern reports
   for (const category of categories) {
     const categoryDetections = detections.filter(d => d.type === category);
     if (categoryDetections.length > 0) {
-      await generateCategoryPDF(category, categoryDetections);
+      // Group detections by pattern name
+      const patternGroups = categoryDetections.reduce((acc, detection) => {
+        if (!acc[detection.name]) {
+          acc[detection.name] = [];
+        }
+        acc[detection.name].push(detection);
+        return acc;
+      }, {});
+      
+      // Generate individual report for each pattern
+      for (const [patternName, patternDetections] of Object.entries(patternGroups)) {
+        await generateIndividualPatternPDF(category, patternName, patternDetections);
+      }
+      
+      // Generate category summary report
+      await generateCategorySummaryPDF(category, categoryDetections);
     }
   }
 }
 
+// Generate individual pattern report
+async function generateIndividualPatternPDF(category, patternName, detections) {
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: 50, bottom: 50, left: 50, right: 50 }
+  });
+  
+  const categoryDir = path.join(__dirname, '..', 'Reports', category);
+  
+  // For single-candle patterns, put files directly in category folder
+  // For other categories, create pattern subfolders
+  let filepath;
+  if (category === 'single-candle') {
+    if (!fs.existsSync(categoryDir)) {
+      fs.mkdirSync(categoryDir, { recursive: true });
+    }
+    const filename = `${patternName}.pdf`;
+    filepath = path.join(categoryDir, filename);
+  } else {
+    const patternDir = path.join(categoryDir, patternName);
+    if (!fs.existsSync(patternDir)) {
+      fs.mkdirSync(patternDir, { recursive: true });
+    }
+    const filename = `${patternName}-report.pdf`;
+    filepath = path.join(patternDir, filename);
+  }
+  
+  doc.pipe(fs.createWriteStream(filepath));
+  
+  // Header with gradient-like effect
+  doc.rect(0, 0, doc.page.width, 80)
+     .fill('#2c3e50');
+  
+  doc.fillColor('#ffffff')
+     .fontSize(24)
+     .font('Helvetica-Bold')
+     .text(patternName.replace(/-/g, ' ').toUpperCase(), 50, 30);
+  
+  doc.fillColor('#ecf0f1')
+     .fontSize(12)
+     .font('Helvetica')
+     .text(`Pattern Type: ${category}`, 50, 55);
+  
+  // Pattern info box
+  let y = 100;
+  
+  doc.rect(50, y, doc.page.width - 100, 60)
+     .fill('#ecf0f1');
+  
+  doc.fillColor('#2c3e50')
+     .fontSize(14)
+     .font('Helvetica-Bold')
+     .text('PATTERN INFORMATION', 70, y + 10);
+  
+  y += 25;
+  
+  doc.fillColor('#34495e')
+     .fontSize(11)
+     .font('Helvetica')
+     .text(`Total Detections: ${detections.length}`, 70, y);
+  
+  y += 15;
+  
+  doc.text(`Description: ${detections[0].commonContext}`, 70, y);
+  
+  y += 30;
+  
+  // Detailed detections
+  doc.fillColor('#2c3e50')
+     .fontSize(16)
+     .font('Helvetica-Bold')
+     .text(`DETAILED DETECTIONS (${detections.length})`, 50, y);
+  
+  y += 30;
+  
+  // Sort detections by timestamp
+  const sortedDetections = detections.sort((a, b) => a.index - b.index);
+  
+  for (let i = 0; i < sortedDetections.length; i++) {
+    const detection = sortedDetections[i];
+    
+    // Detection box
+    doc.rect(50, y, doc.page.width - 100, 95)
+       .fill('#f8f9fa');
+    
+    doc.rect(50, y, doc.page.width - 100, 95)
+       .stroke('#dee2e6');
+    
+    // Detection number
+    doc.fillColor('#6c757d')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`#${i + 1}`, 60, y + 10);
+    
+    // Pattern name and type
+    doc.fillColor('#2c3e50')
+       .fontSize(12)
+       .font('Helvetica-Bold')
+       .text(`${detection.name.toUpperCase()}`, 80, y + 10);
+    
+    doc.fillColor('#6c757d')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`Type: ${detection.type}`, 80, y + 25);
+    
+    // Time and index
+    doc.fillColor('#495057')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`Time: ${detection.timestampLocal}`, 60, y + 40);
+    
+    doc.text(`Index: ${detection.index}`, 60, y + 55);
+    
+    // OHLC data
+    doc.text(`Open: $${detection.candle.open.toFixed(2)}`, 200, y + 40);
+    doc.text(`Close: $${detection.candle.close.toFixed(2)}`, 200, y + 55);
+    
+    doc.text(`High: $${detection.candle.high.toFixed(2)}`, 320, y + 40);
+    doc.text(`Low: $${detection.candle.low.toFixed(2)}`, 320, y + 55);
+    
+    // Prediction and context
+    doc.fillColor('#28a745')
+       .fontSize(10)
+       .font('Helvetica-Bold')
+       .text(`Prediction: ${detection.typicalPrediction}`, 60, y + 70);
+    
+    doc.fillColor('#6c757d')
+       .fontSize(9)
+       .font('Helvetica')
+       .text(`Context: ${detection.commonContext}`, 60, y + 85);
+    
+    y += 110;
+    
+    // Pagination
+    if (y > 650) {
+      doc.addPage();
+      y = 50;
+    }
+  }
+  
+  // Footer
+  try {
+    const pageRange = doc.bufferedPageRange();
+    if (pageRange && pageRange.count > 0) {
+      const startPage = pageRange.start || 0;
+      const pageCount = pageRange.count;
+      
+      for (let i = startPage; i < startPage + pageCount; i++) {
+        doc.switchToPage(i);
+        
+        doc.fillColor('#95a5a6')
+           .fontSize(8)
+           .font('Helvetica')
+           .text(`Page ${i - startPage + 1} of ${pageCount}`, 50, doc.page.height - 30);
+        
+        doc.text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })}`, 
+                 doc.page.width - 200, doc.page.height - 30);
+      }
+    }
+  } catch (error) {
+    console.log('Could not add footer to PDF:', error.message);
+  }
+  
+  doc.end();
+  console.log(`✅ Generated individual ${patternName} report: ${filepath}`);
+}
+
+// Generate category summary report
+async function generateCategorySummaryPDF(category, detections) {
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: 50, bottom: 50, left: 50, right: 50 }
+  });
+  
+  const reportsDir = path.join(__dirname, '..', 'Reports');
+  if (!fs.existsSync(reportsDir)) {
+    fs.mkdirSync(reportsDir, { recursive: true });
+  }
+  
+  const filename = `${category}-patterns-summary.pdf`;
+  const filepath = path.join(reportsDir, filename);
+  
+  doc.pipe(fs.createWriteStream(filepath));
+  
+  // Header with gradient-like effect
+  doc.rect(0, 0, doc.page.width, 80)
+     .fill('#2c3e50');
+  
+  doc.fillColor('#ffffff')
+     .fontSize(24)
+     .font('Helvetica-Bold')
+     .text(`${category.replace(/-/g, ' ').toUpperCase()} PATTERNS SUMMARY`, 50, 30);
+  
+  doc.fillColor('#ecf0f1')
+     .fontSize(12)
+     .font('Helvetica')
+     .text(`Total Detections: ${detections.length}`, 50, 55);
+  
+  // Pattern counts
+  let y = 100;
+  
+  const patternCounts = detections.reduce((acc, detection) => {
+    acc[detection.name] = (acc[detection.name] || 0) + 1;
+    return acc;
+  }, {});
+  
+  doc.fillColor('#2c3e50')
+     .fontSize(16)
+     .font('Helvetica-Bold')
+     .text('PATTERN COUNTS', 50, y);
+  
+  y += 30;
+  
+  const sortedPatterns = Object.entries(patternCounts)
+    .sort(([,a], [,b]) => b - a);
+  
+  for (const [patternName, count] of sortedPatterns) {
+    const percentage = ((count / detections.length) * 100).toFixed(1);
+    
+    doc.fillColor('#2c3e50')
+       .fontSize(12)
+       .font('Helvetica-Bold')
+       .text(`${patternName.replace(/-/g, ' ').toUpperCase()}:`, 70, y);
+    
+    doc.fillColor('#7f8c8d')
+       .fontSize(11)
+       .font('Helvetica')
+       .text(`${count} detections (${percentage}%)`, 200, y);
+    
+    y += 25;
+    
+    if (y > 700) {
+      doc.addPage();
+      y = 50;
+    }
+  }
+  
+  // Footer
+  try {
+    const pageRange = doc.bufferedPageRange();
+    if (pageRange && pageRange.count > 0) {
+      const startPage = pageRange.start || 0;
+      const pageCount = pageRange.count;
+      
+      for (let i = startPage; i < startPage + pageCount; i++) {
+        doc.switchToPage(i);
+        
+        doc.fillColor('#95a5a6')
+           .fontSize(8)
+           .font('Helvetica')
+           .text(`Page ${i - startPage + 1} of ${pageCount}`, 50, doc.page.height - 30);
+        
+        doc.text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })}`, 
+                 doc.page.width - 200, doc.page.height - 30);
+      }
+    }
+  } catch (error) {
+    console.log('Could not add footer to PDF:', error.message);
+  }
+  
+  doc.end();
+  console.log(`✅ Generated ${category} summary report: ${filepath}`);
+}
+
+// Keep old function for backward compatibility
 async function generateCategoryPDF(category, detections) {
   const doc = new PDFDocument({
     size: 'A4',

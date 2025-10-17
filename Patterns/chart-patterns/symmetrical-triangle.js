@@ -73,7 +73,7 @@ function detectSymmetricalTriangle(candles, index, windowSize = 25) {
 
 const spec = {
   name: "symmetrical-triangle",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 25,
   shapeOnly: true,
   description: "Líneas de soporte y resistencia que convergen, indica consolidación.",

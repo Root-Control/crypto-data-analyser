@@ -15,7 +15,7 @@ function detectTripleBottom(candles, index, windowSize = 40) {
 
 const spec = {
   name: "triple-bottom",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 40,
   shapeOnly: true,
   description: "Tres valles similares, patrón de reversión alcista.",

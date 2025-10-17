@@ -72,7 +72,7 @@ function detectDoubleBottom(candles, index, windowSize = 30) {
 
 const spec = {
   name: "double-bottom",
-  type: "chart",
+  type: "chart-patterns",
   minCandles: 30,
   shapeOnly: true,
   description: "Dos valles similares con pico entre ellos, patrón de reversión alcista.",
