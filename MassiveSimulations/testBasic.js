@@ -2,6 +2,137 @@ const mongoose = require('mongoose');
 const CandleAnalyst = require('./database/candleAnalyst');
 const { basicPrediction } = require('./algorithms/basicPrediction');
 
+// ============================================================================
+// TODAS LAS CONSTANTES DEL SISTEMA - CONFIGURACIÓN CENTRALIZADA
+// ============================================================================
+
+// ============================================================================
+// CONFIGURACIÓN PRINCIPAL DE SIMULACIÓN
+// ============================================================================
+const SYMBOL = 'ETHUSDT';
+const CAPITAL = 400;
+const LEVERAGE = 10;
+
+// ============================================================================
+// CONFIGURACIÓN DE TRADING
+// ============================================================================
+const TP_MULTIPLIER = 1.2;          // Multiplicador de Take Profit [1.0, 1.1, 1.2, 1.5, 2.0, 3.0]
+const TP_MAX_PERCENT = 0.025;       // Take Profit máximo [0.005, 0.01, 0.015, 0.025, 0.05, 0.1]
+const SL_PERCENT = 0.008;           // Stop Loss [0.002, 0.005, 0.008, 0.01, 0.02, 0.05]
+const MOVEMENT_THRESHOLD = 0.2;     // Umbral de movimiento para clasificar dirección
+
+// ============================================================================
+// CONFIGURACIÓN DE FILTRADO DE DATOS
+// ============================================================================
+const MIN_SEQUENCE_LENGTH = 3;      // Mínimo de bloques para secuencia válida (min: 2, max: 10)
+const MAX_GAP_MINUTES = 60;         // Gap máximo permitido entre bloques (min: 15, max: 240)
+const INTERVAL_MINUTES = 15;        // Intervalo entre bloques (min: 5, max: 60)
+const DEBUG_GAP_THRESHOLD = 60;     // Mostrar gaps mayores a X minutos (min: 30, max: 180)
+const SHOW_LAST_BLOCKS = 5;         // Mostrar últimos X bloques (min: 3, max: 20)
+const MIN_BLOCKS_FOR_SIMULATION = 3; // Mínimo de bloques para simulación (min: 2, max: 10)
+
+// ============================================================================
+// CONFIGURACIÓN DE CONEXIÓN Y LOGGING
+// ============================================================================
+const MONGODB_URI = 'mongodb://localhost:27017/crypto-data-analyser-v2';
+const TOP_TRADES_COUNT = 5;         // Mostrar top 5 mejores/peores trades
+
+// ============================================================================
+// CONFIGURACIÓN DE PRECISIÓN Y FORMATO
+// ============================================================================
+const PRICE_ROUNDING = 100;         // Redondeo a 2 decimales
+const PNL_ROUNDING = 100;           // Redondeo de P&L
+const PERCENTAGE_ROUNDING = 100;    // Redondeo de porcentajes
+
+// ============================================================================
+// CONSTANTES DEL ALGORITMO DE PREDICCIÓN
+// ============================================================================
+
+// Ponderaciones de factores principales
+const ALGORITHM_WEIGHTS = {
+  momentum: 0.45,    // 45% - Momentum histórico (máximo peso)
+  book: 0.3,         // 30% - Order book actual
+  flow: 0.2,         // 20% - Volume flow
+  climax: 0.05,      // 5% - Presión de climax (mínimo)
+};
+
+// Ponderaciones de momentum
+const MOMENTUM_WEIGHTS = {
+  price: 0.5,        // 50% - Precio
+  volume: 0.3,       // 30% - Volumen
+  imbalance: 0.2,    // 20% - Imbalance
+};
+
+// Ponderaciones de order book
+const BOOK_WEIGHTS = {
+  bidAskImbalance: 0.4,    // 40% - Imbalance bid/ask
+  depthAsymmetry: 0.3,     // 30% - Asimetría de profundidad
+  momentumAlignment: 0.3,  // 30% - Alineación de momentum
+};
+
+// Umbrales de señales fuertes
+const STRONG_MOMENTUM_THRESHOLD = 0.4;    // Señal muy fuerte de momentum
+const STRONG_BOOK_THRESHOLD = 0.3;        // Order book muy sesgado
+const STRONG_FLOW_THRESHOLD = 0.25;       // Flujo de volumen intenso
+
+// Umbrales de decisión
+const FINAL_SCORE_THRESHOLD = 0.3;        // Umbral para UP/DOWN vs SIDEWAYS
+
+// Configuración de análisis temporal
+const RECENT_CANDLES_MOMENTUM = 10;       // Últimos N minutos para momentum
+const SUPPORT_RESISTANCE_CANDLES = 30;    // Últimos N velas para soporte/resistencia
+const FLOW_RECENT_CANDLES = 3;            // Últimos N minutos para volume flow
+const CLIMAX_RECENT_CANDLES = 5;          // Últimos N minutos para climax
+
+// Configuración de soporte/resistencia
+const SUPPORT_TOLERANCE = 1.002;          // Tolerancia de soporte (0.2%)
+const RESISTANCE_TOLERANCE = 0.998;       // Tolerancia de resistencia (0.2%)
+const SUPPORT_RESISTANCE_FACTOR = 0.5;    // Factor de soporte/resistencia
+
+// Configuración de liquidez
+const HIGH_LIQUIDITY_THRESHOLD = 100;     // Alta liquidez
+const MEDIUM_LIQUIDITY_THRESHOLD = 10;    // Media liquidez
+
+// Configuración de momentum alignment
+const LAST_MINUTE_WEIGHT = 0.6;           // 60% peso último minuto
+const RECENT_AVG_WEIGHT = 0.4;            // 40% peso promedio reciente
+
+// Configuración de climax
+const CLIMAX_FLAG_WEIGHT = 0.5;           // Peso de flag climax
+const BULLISH_FLAG_WEIGHT = 0.3;          // Peso de flag bullish
+const BEARISH_FLAG_WEIGHT = 0.3;          // Peso de flag bearish
+
+// Configuración de salida
+const CONFIDENCE_MULTIPLIER = 100;        // Multiplicador de confianza
+const EXPECTED_MOVE_MULTIPLIER = 2;       // Multiplicador de movimiento esperado
+const MAX_CONFIDENCE = 95;                // Máxima confianza permitida
+
+// Configuración de volatilidad
+const VOLATILITY_AMPLIFIER = 1.5;         // Amplificador de tendencias de volatilidad
+
+// Configuración de balance de momentum
+const NEUTRAL_IMBALANCE_THRESHOLD = 0.05; // Umbral de imbalance neutral
+const STRONG_IMBALANCE_THRESHOLD = 0.1;   // Umbral de imbalance fuerte
+
+// Configuración de niveles de riesgo
+const HIGH_LIQUIDITY_RISK = 0.5;          // Riesgo bajo con alta liquidez
+const MEDIUM_LIQUIDITY_RISK = 0.3;        // Riesgo medio con media liquidez
+
+// ============================================================================
+// CONFIGURACIÓN DE COLORES PARA LOGS
+// ============================================================================
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  white: '\x1b[37m',
+};
+
 // Función getLongestSequence (igual que el servidor)
 function getLongestSequence(blocks, showDetailedLogs = true) {
   // Encontrar la secuencia más larga sin gaps
@@ -69,53 +200,6 @@ function getLongestSequence(blocks, showDetailedLogs = true) {
   return longestSequence;
 }
 
-// ============================================================================
-// CONFIGURACIÓN PRINCIPAL DE SIMULACIÓN
-// ============================================================================
-const SYMBOL = 'ETHUSDT';
-const CAPITAL = 400;
-const LEVERAGE = 10;
-
-const TP_MULTIPLIER = 1.2;          // Multiplicador de Take Profit [1.0, 1.1, 1.2, 1.5, 2.0, 3.0]
-const TP_MAX_PERCENT = 0.025;       // Take Profit máximo [0.005, 0.01, 0.015, 0.025, 0.05, 0.1]
-const SL_PERCENT = 0.008;           // Stop Loss [0.002, 0.005, 0.008, 0.01, 0.02, 0.05]
-const MOVEMENT_THRESHOLD = 0.2;
-
-// ============================================================================
-// CONFIGURACIÓN DE FILTRADO DE DATOS
-// ============================================================================
-const MIN_SEQUENCE_LENGTH = 3;      // Mínimo de bloques para secuencia válida (min: 2, max: 10)
-const MAX_GAP_MINUTES = 60;         // Gap máximo permitido entre bloques (min: 15, max: 240)
-const INTERVAL_MINUTES = 15;        // Intervalo entre bloques (min: 5, max: 60)
-const DEBUG_GAP_THRESHOLD = 60;     // Mostrar gaps mayores a X minutos (min: 30, max: 180)
-const SHOW_LAST_BLOCKS = 5;         // Mostrar últimos X bloques (min: 3, max: 20)
-const MIN_BLOCKS_FOR_SIMULATION = 3; // Mínimo de bloques para simulación (min: 2, max: 10)
-
-// ============================================================================
-// CONFIGURACIÓN DE CONEXIÓN Y LOGGING
-// ============================================================================
-const MONGODB_URI = 'mongodb://localhost:27017/crypto-data-analyser-v2';
-const TOP_TRADES_COUNT = 5;               // Mostrar top 5 mejores/peores trades
-
-// ============================================================================
-// CONFIGURACIÓN DE PRECISIÓN
-// ============================================================================
-const PRICE_ROUNDING = 100;               // Redondeo a 2 decimales
-const PNL_ROUNDING = 100;                 // Redondeo de P&L
-const PERCENTAGE_ROUNDING = 100;          // Redondeo de porcentajes
-
-// Colores para logs
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
-};
 
 // Función para colorear texto
 function colorize(text, color) {
