@@ -463,7 +463,15 @@ function shouldRemoveSubsequentBlocks(currentIndex, totalBlocks) {
 }
 
 // Función principal de simulación
-async function runBasicSimulation(showDetailedLogs = true, config = {}) {
+async function runBasicSimulation(
+  showDetailedLogs = true, 
+  config = {
+    tpMultiplier: TP_MULTIPLIER,
+    tpMaxPercent: TP_MAX_PERCENT,
+    slPercent: SL_PERCENT,
+  }
+) {
+  
   try {
     if (showDetailedLogs) {
       console.log('🚀 Iniciando simulación basicPrediction...');
@@ -472,13 +480,9 @@ async function runBasicSimulation(showDetailedLogs = true, config = {}) {
       console.log(`⚡ Leverage: ${LEVERAGE}x`);
       
       // Mostrar configuración de trading
-      const tpMultiplier = config.tpMultiplier || TP_MULTIPLIER;
-      const tpMaxPercent = config.tpMaxPercent || TP_MAX_PERCENT;
-      const slPercent = config.slPercent || SL_PERCENT;
-      
-      console.log(`📈 TP Multiplier: ${tpMultiplier}`);
-      console.log(`📊 TP Max Percent: ${(tpMaxPercent * 100).toFixed(2)}%`);
-      console.log(`🛑 SL Percent: ${(slPercent * 100).toFixed(2)}%`);
+      console.log(`📈 TP Multiplier: ${config.tpMultiplier}`);
+      console.log(`📊 TP Max Percent: ${(config.tpMaxPercent * 100).toFixed(2)}%`);
+      console.log(`🛑 SL Percent: ${(config.slPercent * 100).toFixed(2)}%`);
       console.log('');
     }
 
