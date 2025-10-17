@@ -656,13 +656,15 @@ async function generateCategoryPDF(category, detections) {
   try {
     const pageRange = doc.bufferedPageRange();
     if (pageRange && pageRange.count > 0) {
+      const startPage = pageRange.start || 0;
       const pageCount = pageRange.count;
-      for (let i = 0; i < pageCount; i++) {
+      
+      for (let i = startPage; i < startPage + pageCount; i++) {
         doc.switchToPage(i);
         
         doc.fillColor('#95a5a6')
            .fontSize(10)
-           .text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })} | Page ${i + 1} of ${pageCount}`, 50, doc.page.height - 30);
+           .text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })} | Page ${i - startPage + 1} of ${pageCount}`, 50, doc.page.height - 30);
         
         doc.text('Shape-only analysis • No validations or confirmations applied', 50, doc.page.height - 15);
       }
@@ -838,13 +840,15 @@ async function generateMainSummaryReport(detections, totalCandles) {
   try {
     const pageRange = doc.bufferedPageRange();
     if (pageRange && pageRange.count > 0) {
+      const startPage = pageRange.start || 0;
       const pageCount = pageRange.count;
-      for (let i = 0; i < pageCount; i++) {
+      
+      for (let i = startPage; i < startPage + pageCount; i++) {
         doc.switchToPage(i);
         
         doc.fillColor('#95a5a6')
            .fontSize(10)
-           .text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })} | Page ${i + 1} of ${pageCount}`, 50, doc.page.height - 30);
+           .text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })} | Page ${i - startPage + 1} of ${pageCount}`, 50, doc.page.height - 30);
         
         doc.text('Pattern Detection System • Shape-only Analysis', 50, doc.page.height - 15);
       }
