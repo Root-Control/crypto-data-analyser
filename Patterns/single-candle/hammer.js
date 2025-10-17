@@ -25,7 +25,12 @@ function detectHammer(candles, index) {
   const hasSmallUpperWick = upperWickRatio <= 0.2;
   
   // Body should be at top of candle (close near high)
-  const bodyAtTop = (candle.close - Math.min(candle.open, candle.close)) / (candle.high - candle.low) <= 0.3;
+  // For hammer: body should be in upper 30% of the total range
+  const bodyTop = Math.max(candle.open, candle.close);
+  const bodyBottom = Math.min(candle.open, candle.close);
+  const totalRange = candle.high - candle.low;
+  const bodyPosition = (bodyTop - candle.low) / totalRange;
+  const bodyAtTop = bodyPosition >= 0.7; // Body in upper 30% of range
   
   const match = hasSmallBody && hasLongLowerWick && hasSmallUpperWick && bodyAtTop;
   
