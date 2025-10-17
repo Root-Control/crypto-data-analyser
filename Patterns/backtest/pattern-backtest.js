@@ -145,7 +145,7 @@ async function fetchHistoricalDataWithValidation() {
     console.log(`  Batch ${i + 1}/${iterations}...`);
     
     try {
-      const url = `https://api.binance.com/api/v3/klines`;
+      const url = `https://fapi.binance.com/fapi/v1/klines`;
       const params = {
         symbol,
         interval,
