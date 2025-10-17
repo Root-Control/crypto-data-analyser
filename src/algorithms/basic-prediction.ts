@@ -11,7 +11,13 @@ export function basicPrediction(
   currentBook: BookSnapshot | null,
   minCandles = 3,
 ): PredictionScore {
-  return predictNextCandle(historicalCandles, currentBook, minCandles);
+  const basePrediction = predictNextCandle(
+    historicalCandles,
+    currentBook,
+    minCandles,
+  );
+
+  return basePrediction;
 }
 
 export type { HistoricalCandle, PredictionScore };

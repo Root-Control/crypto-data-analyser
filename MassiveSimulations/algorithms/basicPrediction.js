@@ -1,16 +1,16 @@
 // Algoritmo basicPrediction - Replicación EXACTA del servidor
 // Basado en src/algorithms/basic-prediction.ts que simplemente llama a predictNextCandle
 
-function basicPrediction(historicalCandles, currentBook, minCandles = 3) {
+function basicPrediction(historicalCandles, currentBook, minCandles = 3, constants = {}) {
   // Llamar exactamente igual que el servidor
-  return predictNextCandle(historicalCandles, currentBook, minCandles);
+  return predictNextCandle(historicalCandles, currentBook, minCandles, constants);
 }
 
 // ============================================================================
 // FUNCIÓN predictNextCandle - Replicación EXACTA del servidor
 // ============================================================================
 
-function predictNextCandle(historicalCandles, currentBook, minCandles = 3) {
+function predictNextCandle(historicalCandles, currentBook, minCandles = 3, constants = {}) {
   if (historicalCandles.length < minCandles) {
     return {
       direction: 'SIDEWAYS',
@@ -27,11 +27,11 @@ function predictNextCandle(historicalCandles, currentBook, minCandles = 3) {
   }
 
   // FASE 1: Análisis de Momentum
-  const momentum = analyzeMomentum(historicalCandles);
+  const momentum = analyzeMomentum(historicalCandles, constants);
 
   // FASE 2: Análisis de Order Book
   const bookPressure = currentBook
-    ? analyzeBookPressure(currentBook, historicalCandles)
+    ? analyzeBookPressure(currentBook, historicalCandles, constants)
     : {
         bidAskImbalance: 0,
         spreadTightening: 0,
@@ -41,10 +41,10 @@ function predictNextCandle(historicalCandles, currentBook, minCandles = 3) {
       };
 
   // FASE 3: Análisis de Volume Flow
-  const flowScore = analyzeVolumeFlow(historicalCandles);
+  const flowScore = analyzeVolumeFlow(historicalCandles, constants);
 
   // FASE 4: Análisis de Climax
-  const climaxScore = analyzeClimaxPressure(historicalCandles);
+  const climaxScore = analyzeClimaxPressure(historicalCandles, constants);
 
   // FASE 5: Ponderación y Decisión Final
   return calculateFinalPrediction(
@@ -52,6 +52,7 @@ function predictNextCandle(historicalCandles, currentBook, minCandles = 3) {
     bookPressure,
     flowScore,
     climaxScore,
+    constants,
   );
 }
 
@@ -59,9 +60,10 @@ function predictNextCandle(historicalCandles, currentBook, minCandles = 3) {
 // ANÁLISIS DE MOMENTUM - Replicación EXACTA del servidor
 // ============================================================================
 
-function analyzeMomentum(candles) {
+function analyzeMomentum(candles, constants = {}) {
   // Usar más datos históricos para estadística robusta
-  const recent = candles.slice(-10); // Últimos 10 minutos para mejor estadística
+  const recentCandlesCount = constants.RECENT_CANDLES_MOMENTUM || 10;
+  const recent = candles.slice(-recentCandlesCount); // Últimos N minutos para mejor estadística
 
   // 1. Price Momentum con soportes/resistencias
   const priceMomentum = calculatePriceMomentumWithSupportResistance(

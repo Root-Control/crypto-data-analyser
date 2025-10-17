@@ -21,22 +21,22 @@ function getLongestSequence(blocks, showDetailedLogs = true) {
     const diffMinutes =
       (currentTime.getTime() - prevTime.getTime()) / (1000 * 60);
 
-    if (diffMinutes === 15) {
+    if (diffMinutes === INTERVAL_MINUTES) {
       // Continuar la secuencia
       currentSequence.push(currentBlock);
     } else {
       // Debug para gaps grandes
-      if (showDetailedLogs && diffMinutes > 60) {
+      if (showDetailedLogs && diffMinutes > DEBUG_GAP_THRESHOLD) {
         console.log(`🔍 Gap detectado: ${prevBlock.startDate}_${prevBlock.startTime} -> ${currentBlock.startDate}_${currentBlock.startTime} (${diffMinutes} minutos)`);
       }
       
       // Guardar secuencia actual y empezar nueva
-      if (currentSequence.length >= 3) {
+      if (currentSequence.length >= MIN_SEQUENCE_LENGTH) {
         sequences.push(currentSequence);
       }
       // NO empezar nueva secuencia con bloques que no tienen continuidad
       // Solo continuar si el gap es razonable (menos de 1 hora)
-      if (diffMinutes <= 60) {
+      if (diffMinutes <= MAX_GAP_MINUTES) {
         currentSequence = [currentBlock];
       } else {
         // Gap muy grande, no incluir este bloque
@@ -49,7 +49,7 @@ function getLongestSequence(blocks, showDetailedLogs = true) {
   }
 
   // Agregar la última secuencia solo si tiene continuidad
-  if (currentSequence.length >= 3) {
+  if (currentSequence.length >= MIN_SEQUENCE_LENGTH) {
     sequences.push(currentSequence);
   }
 
@@ -69,14 +69,40 @@ function getLongestSequence(blocks, showDetailedLogs = true) {
   return longestSequence;
 }
 
-// Configuración
+// ============================================================================
+// CONFIGURACIÓN PRINCIPAL DE SIMULACIÓN
+// ============================================================================
 const SYMBOL = 'ETHUSDT';
 const CAPITAL = 400;
 const LEVERAGE = 10;
-const TP_MULTIPLIER = 1.2;
-const TP_MAX_PERCENT = 0.025;
-const SL_PERCENT = 0.008;
+
+const TP_MULTIPLIER = 1.2;          // Multiplicador de Take Profit [1.0, 1.1, 1.2, 1.5, 2.0, 3.0]
+const TP_MAX_PERCENT = 0.025;       // Take Profit máximo [0.005, 0.01, 0.015, 0.025, 0.05, 0.1]
+const SL_PERCENT = 0.008;           // Stop Loss [0.002, 0.005, 0.008, 0.01, 0.02, 0.05]
 const MOVEMENT_THRESHOLD = 0.2;
+
+// ============================================================================
+// CONFIGURACIÓN DE FILTRADO DE DATOS
+// ============================================================================
+const MIN_SEQUENCE_LENGTH = 3;      // Mínimo de bloques para secuencia válida (min: 2, max: 10)
+const MAX_GAP_MINUTES = 60;         // Gap máximo permitido entre bloques (min: 15, max: 240)
+const INTERVAL_MINUTES = 15;        // Intervalo entre bloques (min: 5, max: 60)
+const DEBUG_GAP_THRESHOLD = 60;     // Mostrar gaps mayores a X minutos (min: 30, max: 180)
+const SHOW_LAST_BLOCKS = 5;         // Mostrar últimos X bloques (min: 3, max: 20)
+const MIN_BLOCKS_FOR_SIMULATION = 3; // Mínimo de bloques para simulación (min: 2, max: 10)
+
+// ============================================================================
+// CONFIGURACIÓN DE CONEXIÓN Y LOGGING
+// ============================================================================
+const MONGODB_URI = 'mongodb://localhost:27017/crypto-data-analyser-v2';
+const TOP_TRADES_COUNT = 5;               // Mostrar top 5 mejores/peores trades
+
+// ============================================================================
+// CONFIGURACIÓN DE PRECISIÓN
+// ============================================================================
+const PRICE_ROUNDING = 100;               // Redondeo a 2 decimales
+const PNL_ROUNDING = 100;                 // Redondeo de P&L
+const PERCENTAGE_ROUNDING = 100;          // Redondeo de porcentajes
 
 // Colores para logs
 const colors = {
@@ -126,14 +152,20 @@ function convertBlocksToHistoricalCandles(blocks) {
 }
 
 // Función calculateTradingSetup (igual que el servidor)
-function calculateTradingSetup(currentBlock, prediction, capital, leverage) {
+function calculateTradingSetup(currentBlock, prediction, capital, leverage, config = {}) {
   // Precio de entrada: último precio conocido del bloque actual (momento de la predicción)
   const entryPrice = currentBlock.analysis[currentBlock.analysis.length - 1].close;
 
   // Calcular TAKE PROFIT y STOP LOSS mejorado (ANTES del trade)
   const expectedMovePercent = prediction.expectedMove / 100; // Convertir a decimal
-  const takeProfitPercent = Math.min(expectedMovePercent * TP_MULTIPLIER, TP_MAX_PERCENT); // 120% del movimiento esperado, max 2.5%
-  const stopLossPercent = SL_PERCENT; // 0.8% Stop Loss
+  
+  // Usar config si está disponible, sino usar valores por defecto
+  const tpMultiplier = config.tpMultiplier || TP_MULTIPLIER;
+  const tpMaxPercent = config.tpMaxPercent || TP_MAX_PERCENT;
+  const slPercent = config.slPercent || SL_PERCENT;
+  
+  const takeProfitPercent = Math.min(expectedMovePercent * tpMultiplier, tpMaxPercent); // 120% del movimiento esperado, max 2.5%
+  const stopLossPercent = slPercent; // 0.8% Stop Loss
 
   let takeProfitPrice = 0;
   let stopLossPrice = 0;
@@ -307,23 +339,23 @@ function getResults(blockPrediction, blockSnapshot) {
       exists: true,
       actualDirection,
       actualMove,
-      pnl: Math.round(pnl * 100) / 100,
-      pnlPercent: Math.round(pnlPercent * 100) / 100,
+      pnl: Math.round(pnl * PNL_ROUNDING) / PNL_ROUNDING,
+      pnlPercent: Math.round(pnlPercent * PERCENTAGE_ROUNDING) / PERCENTAGE_ROUNDING,
       takeProfitReached,
       stopLossReached,
-      exitPrice: Math.round(exitPrice * 100) / 100,
+      exitPrice: Math.round(exitPrice * PRICE_ROUNDING) / PRICE_ROUNDING,
       exitReason,
       details: {
-        open: Math.round(firstCandle.open * 100) / 100,
-        close: Math.round(lastCandle.close * 100) / 100,
-        entryPrice: Math.round(entryPrice * 100) / 100,
-        takeProfitPrice: Math.round(takeProfitPrice * 100) / 100,
-        stopLossPrice: Math.round(stopLossPrice * 100) / 100,
-        maxPrice: Math.round(maxPrice * 100) / 100,
-        minPrice: Math.round(minPrice * 100) / 100,
-        finalPrice: Math.round(lastCandle.close * 100) / 100,
-        maxMovePercent: Math.round(maxMovePercent * 100) / 100,
-        minMovePercent: Math.round(minMovePercent * 100) / 100,
+        open: Math.round(firstCandle.open * PRICE_ROUNDING) / PRICE_ROUNDING,
+        close: Math.round(lastCandle.close * PRICE_ROUNDING) / PRICE_ROUNDING,
+        entryPrice: Math.round(entryPrice * PRICE_ROUNDING) / PRICE_ROUNDING,
+        takeProfitPrice: Math.round(takeProfitPrice * PRICE_ROUNDING) / PRICE_ROUNDING,
+        stopLossPrice: Math.round(stopLossPrice * PRICE_ROUNDING) / PRICE_ROUNDING,
+        maxPrice: Math.round(maxPrice * PRICE_ROUNDING) / PRICE_ROUNDING,
+        minPrice: Math.round(minPrice * PRICE_ROUNDING) / PRICE_ROUNDING,
+        finalPrice: Math.round(lastCandle.close * PRICE_ROUNDING) / PRICE_ROUNDING,
+        maxMovePercent: Math.round(maxMovePercent * PERCENTAGE_ROUNDING) / PERCENTAGE_ROUNDING,
+        minMovePercent: Math.round(minMovePercent * PERCENTAGE_ROUNDING) / PERCENTAGE_ROUNDING,
       },
     };
   } catch (error) {
@@ -347,18 +379,27 @@ function shouldRemoveSubsequentBlocks(currentIndex, totalBlocks) {
 }
 
 // Función principal de simulación
-async function runBasicSimulation(showDetailedLogs = true) {
+async function runBasicSimulation(showDetailedLogs = true, config = {}) {
   try {
     if (showDetailedLogs) {
       console.log('🚀 Iniciando simulación basicPrediction...');
       console.log(`📊 Símbolo: ${SYMBOL}`);
       console.log(`💰 Capital: $${CAPITAL}`);
       console.log(`⚡ Leverage: ${LEVERAGE}x`);
+      
+      // Mostrar configuración de trading
+      const tpMultiplier = config.tpMultiplier || TP_MULTIPLIER;
+      const tpMaxPercent = config.tpMaxPercent || TP_MAX_PERCENT;
+      const slPercent = config.slPercent || SL_PERCENT;
+      
+      console.log(`📈 TP Multiplier: ${tpMultiplier}`);
+      console.log(`📊 TP Max Percent: ${(tpMaxPercent * 100).toFixed(2)}%`);
+      console.log(`🛑 SL Percent: ${(slPercent * 100).toFixed(2)}%`);
       console.log('');
     }
 
     // Conectar a MongoDB
-    await mongoose.connect('mongodb://localhost:27017/crypto-data-analyser-v2');
+    await mongoose.connect(MONGODB_URI);
     if (showDetailedLogs) {
       console.log('✅ Conectado a MongoDB');
     }
@@ -377,14 +418,14 @@ async function runBasicSimulation(showDetailedLogs = true) {
     if (showDetailedLogs) {
       console.log(`📊 Bloques sanitizados: ${candleBlocks.length}`);
       
-      // Mostrar los últimos 5 bloques para verificar
-      console.log('🔍 Últimos 5 bloques:');
-      candleBlocks.slice(-5).forEach((block, index) => {
-        console.log(`   ${candleBlocks.length - 5 + index + 1}. ${block.startDate}_${block.startTime} (${block.status})`);
+      // Mostrar los últimos bloques para verificar
+      console.log(`🔍 Últimos ${SHOW_LAST_BLOCKS} bloques:`);
+      candleBlocks.slice(-SHOW_LAST_BLOCKS).forEach((block, index) => {
+        console.log(`   ${candleBlocks.length - SHOW_LAST_BLOCKS + index + 1}. ${block.startDate}_${block.startTime} (${block.status})`);
       });
     }
 
-    if (candleBlocks.length < 3) {
+    if (candleBlocks.length < MIN_BLOCKS_FOR_SIMULATION) {
       if (showDetailedLogs) {
         console.log('❌ No hay suficientes bloques para la simulación');
       }
@@ -422,7 +463,38 @@ async function runBasicSimulation(showDetailedLogs = true) {
       const currentBook = currentBlock.analysis[currentBlock.analysis.length - 1]?.book || null;
 
       // Generar predicción usando basicPrediction
-      const prediction = basicPrediction(historicalCandles, currentBook, 3);
+      const prediction = basicPrediction(historicalCandles, currentBook, 3, {
+        RECENT_CANDLES_MOMENTUM,
+        SUPPORT_RESISTANCE_CANDLES,
+        SUPPORT_TOLERANCE,
+        RESISTANCE_TOLERANCE,
+        VOLATILITY_AMPLIFIER,
+        BOOK_LEVELS,
+        HIGH_LIQUIDITY_THRESHOLD,
+        MEDIUM_LIQUIDITY_THRESHOLD,
+        LAST_MINUTE_WEIGHT,
+        RECENT_AVG_WEIGHT,
+        NEUTRAL_IMBALANCE_THRESHOLD,
+        STRONG_IMBALANCE_THRESHOLD,
+        FLOW_RECENT_CANDLES,
+        CLIMAX_RECENT_CANDLES,
+        CLIMAX_FLAG_WEIGHT,
+        BULLISH_FLAG_WEIGHT,
+        BEARISH_FLAG_WEIGHT,
+        ALGORITHM_WEIGHTS,
+        MOMENTUM_WEIGHTS,
+        BOOK_WEIGHTS,
+        STRONG_MOMENTUM_THRESHOLD,
+        STRONG_BOOK_THRESHOLD,
+        STRONG_FLOW_THRESHOLD,
+        FINAL_SCORE_THRESHOLD,
+        CONFIDENCE_MULTIPLIER,
+        EXPECTED_MOVE_MULTIPLIER,
+        HIGH_CONFIDENCE_THRESHOLD,
+        MEDIUM_CONFIDENCE_THRESHOLD,
+        HIGH_LIQUIDITY_RISK,
+        MEDIUM_LIQUIDITY_RISK,
+      });
 
       totalPredictions++;
 
@@ -434,7 +506,7 @@ async function runBasicSimulation(showDetailedLogs = true) {
       // Solo procesar si no es SIDEWAYS y hay siguiente bloque
       if (prediction.direction !== 'SIDEWAYS' && nextBlock) {
         // Calcular trading setup
-        const tradingSetup = calculateTradingSetup(currentBlock, prediction, CAPITAL, LEVERAGE);
+        const tradingSetup = calculateTradingSetup(currentBlock, prediction, CAPITAL, LEVERAGE, config);
 
         // Crear predicción con trading setup
         const predictionWithTrading = {
@@ -471,8 +543,8 @@ async function runBasicSimulation(showDetailedLogs = true) {
             stopLossReached: result.stopLossReached,
             exitReason: result.exitReason,
             details: result.details,
-            maxPossiblePnL: Math.round(maxPossiblePnL * 100) / 100,
-            tpTargetPnL: Math.round(tpTargetPnL * 100) / 100,
+            maxPossiblePnL: Math.round(maxPossiblePnL * PNL_ROUNDING) / PNL_ROUNDING,
+            tpTargetPnL: Math.round(tpTargetPnL * PNL_ROUNDING) / PNL_ROUNDING,
           });
         }
       }
@@ -601,15 +673,15 @@ async function runBasicSimulation(showDetailedLogs = true) {
     // Top 5 mejores y peores trades (solo si showDetailedLogs es true)
     if (showDetailedLogs) {
       const sortedTrades = [...trades].sort((a, b) => b.pnl - a.pnl);
-      console.log('🏆 TOP 5 MEJORES TRADES:');
-      sortedTrades.slice(0, 5).forEach((trade, index) => {
+      console.log(`🏆 TOP ${TOP_TRADES_COUNT} MEJORES TRADES:`);
+      sortedTrades.slice(0, TOP_TRADES_COUNT).forEach((trade, index) => {
         const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
         console.log(`${index + 1}. ${trade.blockId} | ${trade.direction} | P&L: $${trade.pnl.toFixed(2)} | ${colorize(trade.actualDirection, directionColor)}`);
       });
       console.log('');
 
-      console.log('💥 TOP 5 PEORES TRADES:');
-      sortedTrades.slice(-5).reverse().forEach((trade, index) => {
+      console.log(`💥 TOP ${TOP_TRADES_COUNT} PEORES TRADES:`);
+      sortedTrades.slice(-TOP_TRADES_COUNT).reverse().forEach((trade, index) => {
         const directionColor = trade.actualDirection === trade.direction ? 'green' : 'red';
         console.log(`${index + 1}. ${trade.blockId} | ${trade.direction} | P&L: $${trade.pnl.toFixed(2)} | ${colorize(trade.actualDirection, directionColor)}`);
       });
@@ -634,7 +706,11 @@ async function runBasicSimulation(showDetailedLogs = true) {
   }
 }
 
+// Exportar función para uso externo
+module.exports = { runBasicSimulation };
+
 // Ejecutar simulación
 // Para logs detallados: runBasicSimulation(true)
 // Para logs simples: runBasicSimulation(false)
+// Con configuración personalizada: runBasicSimulation(true, { tpMultiplier: 1.5, tpMaxPercent: 0.03, slPercent: 0.01 })
 runBasicSimulation(false);
