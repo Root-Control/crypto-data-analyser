@@ -31,6 +31,48 @@ function formatDateTime24h(dateString) {
 }
 
 /**
+ * Check if signal candle has higher volume than previous candle
+ * @param {Object} detection - The pattern detection
+ * @param {Array} allCandles - All candles
+ * @returns {boolean} - true if volume is higher than previous, false otherwise
+ */
+function hasHigherVolumeThanPrevious(detection, allCandles) {
+  const signalIndex = detection.index;
+  const signalCandle = allCandles[signalIndex];
+  
+  // If this is the first candle, we can't compare
+  if (signalIndex === 0) {
+    return true; // Allow first candle
+  }
+  
+  const previousCandle = allCandles[signalIndex - 1];
+  
+  // Compare volumes
+  return signalCandle.volume > previousCandle.volume;
+}
+
+/**
+ * Calculate volume ratio compared to previous candle
+ * @param {Object} detection - The pattern detection
+ * @param {Array} allCandles - All candles
+ * @returns {number} - Volume ratio (signal volume / previous volume)
+ */
+function calculateVolumeRatio(detection, allCandles) {
+  const signalIndex = detection.index;
+  const signalCandle = allCandles[signalIndex];
+  
+  // If this is the first candle, we can't compare
+  if (signalIndex === 0) {
+    return 1.0; // Default ratio for first candle
+  }
+  
+  const previousCandle = allCandles[signalIndex - 1];
+  
+  // Calculate ratio
+  return previousCandle.volume > 0 ? signalCandle.volume / previousCandle.volume : 1.0;
+}
+
+/**
  * Backtest a pattern detection
  * @param {Object} detection - The pattern detection
  * @param {Array} allCandles - All 20,000 candles
@@ -180,11 +222,26 @@ function calculatePnL(entryPrice, exitPrice, isBullish) {
  */
 function backtestPatternDetections(detections, allCandles, options = {}) {
   const results = [];
+  let filteredCount = 0;
   
   for (const detection of detections) {
+    // Apply volume filter: skip if signal candle has lower volume than previous
+    if (!hasHigherVolumeThanPrevious(detection, allCandles)) {
+      filteredCount++;
+      // Skip this detection - don't include in backtest results
+      continue;
+    }
+    
     const backtestResult = backtestPattern(detection, allCandles, options);
     results.push(backtestResult);
   }
+  
+  // Log filtering statistics
+  console.log(`📊 Volume Filter Applied:`);
+  console.log(`   Total detections: ${detections.length}`);
+  console.log(`   Filtered out (low volume): ${filteredCount}`);
+  console.log(`   Remaining for backtest: ${results.length}`);
+  console.log(`   Filter rate: ${((filteredCount / detections.length) * 100).toFixed(1)}%`);
   
   return results;
 }
@@ -371,14 +428,17 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
     const result = sortedResults[i];
     const detection = result.detection;
     
-    // Result box
+    // Calculate volume ratio for this trade
+    const volumeRatio = calculateVolumeRatio(detection, allCandles);
+    
+    // Result box - increased height for volume info
     const boxColor = result.result === 'WIN' ? '#d5f4e6' : 
                      result.result === 'LOSS' ? '#fadbd8' : '#f8f9fa';
     
-    doc.rect(50, y, doc.page.width - 100, 80)
+    doc.rect(50, y, doc.page.width - 100, 95)
        .fill(boxColor);
     
-    doc.rect(50, y, doc.page.width - 100, 80)
+    doc.rect(50, y, doc.page.width - 100, 95)
        .stroke('#dee2e6');
     
     // Trade info
@@ -393,6 +453,13 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
        .text(`Time: ${formatDateTime24h(detection.timestampLocal)}`, 60, y + 25);
     
     doc.text(`Index: ${detection.index}`, 60, y + 40);
+    
+    // Volume ratio information
+    const volumeColor = volumeRatio >= 2.0 ? '#27ae60' : volumeRatio >= 1.5 ? '#f39c12' : '#e74c3c';
+    doc.fillColor(volumeColor)
+       .fontSize(9)
+       .font('Helvetica-Bold')
+       .text(`Vol Ratio: ${volumeRatio.toFixed(2)}x`, 60, y + 55);
     
     // Direction and entry
     const directionColor = result.isBullish ? '#27ae60' : '#e74c3c';
@@ -491,7 +558,7 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
          .text(`Evaluated: ${result.evaluationCandles} candles`, 450, y + 55);
     }
     
-    y += 90;
+    y += 105; // Increased spacing for taller boxes
     
     // Pagination - better spacing
     if (y > 600) {
