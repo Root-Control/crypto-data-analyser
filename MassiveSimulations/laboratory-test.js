@@ -7,14 +7,15 @@ const { runBasicSimulation } = require('./testBasic');
 const mongoose = require('mongoose');
 
 // Variables para rastrear los mejores resultados
-let bestAccuracy = { value: 0, pnl: 0, config: null, tradesExecuted: 0 };
-let bestPnL = { value: 0, accuracy: 0, config: null, tradesExecuted: 0 };
+let bestAccuracy = { value: 0, pnl: 0, config: null, tradesExecuted: 0, wonTrades: 0, lostTrades: 0 };
+let bestPnL = { value: 0, accuracy: 0, config: null, tradesExecuted: 0, wonTrades: 0, lostTrades: 0 };
+let bestCombined = { value: 0, accuracy: 0, pnl: 0, config: null, tradesExecuted: 0, wonTrades: 0, lostTrades: 0 };
+let bestEfficientAccuracy = { value: 0, pnl: 0, config: null, tradesExecuted: Infinity, wonTrades: 0, lostTrades: 0 };
 
 // IIFE (Immediately Invoked Function Expression) with async
 (async () => {
   // Single MongoDB connection for all iterations
-  const MONGODB_URI = 'mongodb://localhost:27017/crypto-data-analyser-v2';
-  //const MONGODB_URI = 'mongodb://localhost:27017/data-analyser';
+  const MONGODB_URI = `mongodb://localhost:27017/${process.env.DB_LABORATORY_NAME}`;
   
   
   try {
@@ -131,6 +132,37 @@ let bestPnL = { value: 0, accuracy: 0, config: null, tradesExecuted: 0 };
                   };
                 }
                 
+                // Update best efficient accuracy (mejor precisión con menor cantidad de trades)
+                if (tradesExecuted > 0 && 
+                    (accuracy > bestEfficientAccuracy.value || 
+                     (accuracy === bestEfficientAccuracy.value && tradesExecuted < bestEfficientAccuracy.tradesExecuted))) {
+                  bestEfficientAccuracy = {
+                    value: accuracy,
+                    pnl: pnl,
+                    config: `[${i},${j},${k},${l}]`,
+                    tradesExecuted: tradesExecuted,
+                    wonTrades: wonTrades,
+                    lostTrades: lostTrades
+                  };
+                }
+                
+                // Update best combined (balance entre precisión y P&L)
+                // Score combinado: 60% precisión + 40% P&L normalizado
+                const normalizedPnL = Math.max(0, pnl / 100); // Normalizar P&L a escala 0-1
+                const combinedScore = (accuracy * 0.6) + (normalizedPnL * 40);
+                
+                if (tradesExecuted > 0 && combinedScore > bestCombined.value) {
+                  bestCombined = {
+                    value: combinedScore,
+                    accuracy: accuracy,
+                    pnl: pnl,
+                    config: `[${i},${j},${k},${l}]`,
+                    tradesExecuted: tradesExecuted,
+                    wonTrades: wonTrades,
+                    lostTrades: lostTrades
+                  };
+                }
+                
                 // Colores para trades ganados (verde) y perdidos (rojo)
                 const green = '\x1b[32m'; // Verde
                 const red = '\x1b[31m';   // Rojo
@@ -175,6 +207,23 @@ let bestPnL = { value: 0, accuracy: 0, config: null, tradesExecuted: 0 };
     console.log(`Trades ejecutados: ${bestPnL.tradesExecuted}`);
     console.log(`Trades ganados: ${green}${bestPnL.wonTrades}${reset}`);
     console.log(`Trades perdidos: ${red}${bestPnL.lostTrades}${reset}`);
+    
+    console.log('\n🎯 MEJOR COMBINADO (Precisión + P&L):');
+    console.log(`Configuración: ${bestCombined.config}`);
+    console.log(`Score combinado: ${bestCombined.value.toFixed(2)}`);
+    console.log(`Precisión: ${bestCombined.accuracy.toFixed(2)}%`);
+    console.log(`P&L: $${bestCombined.pnl.toFixed(2)}`);
+    console.log(`Trades ejecutados: ${bestCombined.tradesExecuted}`);
+    console.log(`Trades ganados: ${green}${bestCombined.wonTrades}${reset}`);
+    console.log(`Trades perdidos: ${red}${bestCombined.lostTrades}${reset}`);
+    
+    console.log('\n⚡ MEJOR PRECISIÓN EFICIENTE (Menos trades):');
+    console.log(`Configuración: ${bestEfficientAccuracy.config}`);
+    console.log(`Precisión: ${bestEfficientAccuracy.value.toFixed(2)}%`);
+    console.log(`P&L: $${bestEfficientAccuracy.pnl.toFixed(2)}`);
+    console.log(`Trades ejecutados: ${bestEfficientAccuracy.tradesExecuted}`);
+    console.log(`Trades ganados: ${green}${bestEfficientAccuracy.wonTrades}${reset}`);
+    console.log(`Trades perdidos: ${red}${bestEfficientAccuracy.lostTrades}${reset}`);
     
   } catch (error) {
     console.error('❌ Error in laboratory test:', error);

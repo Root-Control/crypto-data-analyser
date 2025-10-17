@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const CandleAnalyst = require('./database/candleAnalyst');
 const { basicPrediction } = require('./algorithms/basicPrediction');
 
+const { config } = require('dotenv');
+config({ path: '../.env' }); 
+
 const useOptimalConfig = true;
 
 const optimalConfig = {
@@ -47,8 +50,7 @@ const MIN_BLOCKS_FOR_SIMULATION = 3; // Mínimo de bloques para simulación (min
 // ============================================================================
 // CONFIGURACIÓN DE CONEXIÓN Y LOGGING
 // ============================================================================
-const MONGODB_URI = 'mongodb://localhost:27017/crypto-data-analyser-v2';
-//const MONGODB_URI = 'mongodb://localhost:27017/data-analyser';
+const MONGODB_URI = `mongodb://localhost:27017/${process.env.DB_LABORATORY_NAME}`;
 
 const TOP_TRADES_COUNT = 5;         // Mostrar top 5 mejores/peores trades
 
