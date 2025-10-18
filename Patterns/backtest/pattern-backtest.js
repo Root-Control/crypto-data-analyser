@@ -1137,16 +1137,16 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
       const maxRisePercent = ((maxHigh - signalClose) / signalClose) * 100;
       const maxFallPercent = ((minLow - signalClose) / signalClose) * 100;
       
-      // TP/SL Analysis
-      const tp10x = 1.5; // 1.5% TP for 10X
-      const tp50x = 1.0; // 1.0% TP for 50X
-      const sl10x = 0.8; // 0.8% SL for 10X
-      const sl50x = 0.5; // 0.5% SL for 50X
+      // Dynamic TP/SL Analysis
+      const dynamicLevels = detection.meta.dynamicTP_SL;
+      const tpDynamic = dynamicLevels ? dynamicLevels.tpPct : 0.8; // Fallback to 0.8%
+      const slDynamic = dynamicLevels ? dynamicLevels.slPct : 0.4; // Fallback to 0.4%
       
-      const tpReached10x = maxRisePercent >= tp10x;
-      const tpReached50x = maxRisePercent >= tp50x;
-      const slReached10x = maxFallPercent <= -sl10x;
-      const slReached50x = maxFallPercent <= -sl50x;
+      // Use dynamic levels for both 10X and 50X (same pattern, different leverage)
+      const tpReached10x = maxRisePercent >= tpDynamic;
+      const tpReached50x = maxRisePercent >= tpDynamic;
+      const slReached10x = maxFallPercent <= -slDynamic;
+      const slReached50x = maxFallPercent <= -slDynamic;
       
       // Removed NEXT 5 CANDLES ANALYSIS text and individual Max Rise/Max Fall
       
@@ -1172,22 +1172,22 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
       doc.fillColor(tpReached10x ? '#27ae60' : '#e74c3c')
          .fontSize(8)
          .font('Helvetica')
-         .text(`10X TP (${tp10x}%): ${tpReached10x ? 'YES' : 'NO'}`, block1X + 10, blockY + 25);
+         .text(`10X TP (${tpDynamic.toFixed(2)}%): ${tpReached10x ? 'YES' : 'NO'}`, block1X + 10, blockY + 25);
       
       doc.fillColor(slReached10x ? '#e74c3c' : '#27ae60')
          .fontSize(8)
          .font('Helvetica')
-         .text(`10X SL (${sl10x}%): ${slReached10x ? 'YES' : 'NO'}`, block1X + 10, blockY + 40);
+         .text(`10X SL (${slDynamic.toFixed(2)}%): ${slReached10x ? 'YES' : 'NO'}`, block1X + 10, blockY + 40);
       
       doc.fillColor(tpReached50x ? '#27ae60' : '#e74c3c')
          .fontSize(8)
          .font('Helvetica')
-         .text(`50X TP (${tp50x}%): ${tpReached50x ? 'YES' : 'NO'}`, block1X + 10, blockY + 55);
+         .text(`50X TP (${tpDynamic.toFixed(2)}%): ${tpReached50x ? 'YES' : 'NO'}`, block1X + 10, blockY + 55);
       
       doc.fillColor(slReached50x ? '#e74c3c' : '#27ae60')
          .fontSize(8)
          .font('Helvetica')
-         .text(`50X SL (${sl50x}%): ${slReached50x ? 'YES' : 'NO'}`, block1X + 10, blockY + 70);
+         .text(`50X SL (${slDynamic.toFixed(2)}%): ${slReached50x ? 'YES' : 'NO'}`, block1X + 10, blockY + 70);
       
       // Leverage Analysis
       const capital = 400;
@@ -1297,15 +1297,28 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
          .font('Helvetica')
          .text(`Max Fall: ${maxFallPercent.toFixed(2)}%`, block3X + 10, blockY + 40);
       
-      doc.fillColor('#2c3e50')
-         .fontSize(8)
-         .font('Helvetica')
-         .text(`Peak Candle: ${maxHighCandleIndex}`, block3X + 10, blockY + 55);
-      
-      doc.fillColor('#2c3e50')
-         .fontSize(8)
-         .font('Helvetica')
-         .text(`Low Candle: ${minLowCandleIndex}`, block3X + 10, blockY + 70);
+      // Show dynamic TP/SL values
+      if (dynamicLevels) {
+        doc.fillColor('#8e44ad')
+           .fontSize(7)
+           .font('Helvetica-Bold')
+           .text(`Dynamic TP: ${tpDynamic.toFixed(2)}%`, block3X + 10, blockY + 55);
+        
+        doc.fillColor('#8e44ad')
+           .fontSize(7)
+           .font('Helvetica-Bold')
+           .text(`Dynamic SL: ${slDynamic.toFixed(2)}%`, block3X + 10, blockY + 70);
+      } else {
+        doc.fillColor('#2c3e50')
+           .fontSize(8)
+           .font('Helvetica')
+           .text(`Peak Candle: ${maxHighCandleIndex}`, block3X + 10, blockY + 55);
+        
+        doc.fillColor('#2c3e50')
+           .fontSize(8)
+           .font('Helvetica')
+           .text(`Low Candle: ${minLowCandleIndex}`, block3X + 10, blockY + 70);
+      }
       
       y += 160; // Extra space for 3 blocks (moved up)
     } else {

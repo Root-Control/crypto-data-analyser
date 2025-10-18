@@ -13,6 +13,106 @@ const {
   calculateMedianBody
 } = require('../utils');
 
+/**
+ * Calcula TP y SL dinámicos basados en el análisis de las 3 velas
+ * @param {Object} candle1 - Primera vela
+ * @param {Object} candle2 - Segunda vela  
+ * @param {Object} candle3 - Tercera vela
+ * @returns {Object} Niveles dinámicos de TP/SL
+ */
+function calculateDynamicTP_SL(candle1, candle2, candle3) {
+  const epsilon = 1e-8; // Para evitar división por cero
+  
+  // Cálculos base por vela
+  const body1 = Math.abs(candle1.close - candle1.open);
+  const body2 = Math.abs(candle2.close - candle2.open);
+  const body3 = Math.abs(candle3.close - candle3.open);
+  
+  const range1 = candle1.high - candle1.low;
+  const range2 = candle2.high - candle2.low;
+  const range3 = candle3.high - candle3.low;
+  
+  // Para la vela 3
+  const clv3 = (candle3.close - candle3.low) / Math.max(range3, epsilon);
+  const upperWick3 = (candle3.high - candle3.close) / Math.max(body3, epsilon);
+  
+  // Sub-scores (0-1)
+  
+  // Aceleración de cuerpos
+  const acc12 = Math.min(Math.max(body2 / body1, 0), 2) / 2;
+  const acc23 = Math.min(Math.max(body3 / body2, 0), 2) / 2;
+  const accScore = 0.5 * acc12 + 0.5 * acc23;
+  
+  // "Limpieza" de soldiers (overlap)
+  const ol2 = (candle2.open >= Math.min(candle1.open, candle1.close) && 
+               candle2.open <= Math.max(candle1.open, candle1.close)) ? 1 : 0;
+  const ol3 = (candle3.open >= Math.min(candle2.open, candle2.close) && 
+               candle3.open <= Math.max(candle2.open, candle2.close)) ? 1 : 0;
+  const overlapScore = (ol2 + ol3) / 2;
+  
+  // Penalización por expansión en la 3
+  const rangeRatio = range3 / Math.max((range1 + range2) / 2, epsilon);
+  const bodyJump = body3 / Math.max(body2, epsilon);
+  const expansionPenalty = Math.min(Math.max(rangeRatio - 1.6, 0), 1) * 0.6 + 
+                          Math.min(Math.max(bodyJump - 2.0, 0), 1) * 0.4;
+  
+  // Penalización por mecha superior en la 3
+  const wickPenalty = Math.min(Math.max(upperWick3 - 0.25, 0), 1);
+  
+  // Score final (0-1)
+  const score = Math.min(Math.max(
+    0.35 * accScore +
+    0.25 * clv3 +
+    0.20 * overlapScore -
+    0.15 * expansionPenalty -
+    0.05 * wickPenalty,
+    0), 1);
+  
+  // TP% (banda soldiers con seguridad)
+  const tpBandMin = 0.0065; // 0.65%
+  const tpBandMax = 0.0095; // 0.95%
+  let tpPct = tpBandMin + (tpBandMax - tpBandMin) * score;
+  
+  // Margen de seguridad anti-extremos
+  let safety = 0;
+  if (rangeRatio > 1.6 && bodyJump > 2.0) {
+    safety = 0.0010; // 0.10%
+  } else if (rangeRatio > 1.6 || bodyJump > 2.0) {
+    safety = 0.0005; // 0.05%
+  }
+  tpPct = Math.max(tpBandMin, tpPct - safety);
+  
+  // SL% (único, operativo)
+  const mid3 = (candle3.open + candle3.close) / 2;
+  const retracePct = (candle3.close - mid3) / candle3.close;
+  const propPct = 0.40 * tpPct; // mantener RR ≈ 2:1
+  const slPct = Math.max(retracePct, propPct);
+  
+  // Niveles (LONG)
+  const entry = candle3.close;
+  const tp = candle3.close * (1 + tpPct);
+  const sl = candle3.close * (1 - slPct);
+  
+  return {
+    entry,
+    tp,
+    sl,
+    tpPct: tpPct * 100, // En porcentaje
+    slPct: slPct * 100, // En porcentaje
+    score,
+    metrics: {
+      accScore,
+      clv3,
+      overlapScore,
+      expansionPenalty,
+      wickPenalty,
+      rangeRatio,
+      bodyJump,
+      safety
+    }
+  };
+}
+
 function detectThreeWhiteSoldiers(candles, index) {
   // Detect AFTER the third candle has occurred (3 soldiers pattern)
   if (index < 2 || index >= candles.length) {
@@ -87,6 +187,9 @@ function detectThreeWhiteSoldiers(candles, index) {
 
   confidence = Math.min(1, confidence);
 
+  // Calculate dynamic TP/SL based on the 3 candles analysis
+  const dynamicLevels = calculateDynamicTP_SL(candle1, candle2, candle3);
+  
   return {
     match: true,
     confidence,
@@ -109,7 +212,8 @@ function detectThreeWhiteSoldiers(candles, index) {
       },
       candle1Volume: candle1.volume,
       candle2Volume: candle2.volume,
-      candle3Volume: candle3.volume
+      candle3Volume: candle3.volume,
+      dynamicTP_SL: dynamicLevels
     }
   };
 }
@@ -182,5 +286,6 @@ const spec = {
 module.exports = {
   detectThreeWhiteSoldiers,
   filterTemporalDuplicates,
+  calculateDynamicTP_SL,
   spec
 };
