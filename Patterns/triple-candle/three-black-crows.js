@@ -141,7 +141,51 @@ const spec = {
   commonContext: "en tendencias bajistas, muestra fuerza sostenida de vendedores con momentum real y volúmenes crecientes"
 };
 
+/**
+ * Filtra duplicados temporales en las detecciones de Three Black Crows
+ * Mantiene la detección más antigua (menor timestamp) y elimina las otras
+ * cuando están a 15 minutos de diferencia o menos
+ */
+function filterTemporalDuplicates(detections) {
+  if (!detections || detections.length === 0) return detections;
+  
+  // Ordenar por timestamp (más antiguo primero)
+  const sortedDetections = detections.sort((a, b) => a.candle.timestamp - b.candle.timestamp);
+  
+  const filteredDetections = [];
+  const fifteenMinutes = 15 * 60 * 1000; // 15 minutos en milisegundos
+  
+  for (let i = 0; i < sortedDetections.length; i++) {
+    const currentDetection = sortedDetections[i];
+    const currentTime = currentDetection.candle.timestamp;
+    
+    // Verificar si hay una detección anterior muy cercana (dentro de 15 minutos)
+    let isDuplicate = false;
+    
+    for (let j = 0; j < filteredDetections.length; j++) {
+      const previousDetection = filteredDetections[j];
+      const previousTime = previousDetection.candle.timestamp;
+      const timeDiff = Math.abs(currentTime - previousTime);
+      
+      if (timeDiff <= fifteenMinutes) {
+        isDuplicate = true;
+        break;
+      }
+    }
+    
+    // Solo agregar si no es duplicado temporal
+    if (!isDuplicate) {
+      filteredDetections.push(currentDetection);
+    }
+  }
+  
+  console.log(`🔍 Three Black Crows: Filtrados ${detections.length - filteredDetections.length} duplicados temporales (${detections.length} → ${filteredDetections.length})`);
+  
+  return filteredDetections;
+}
+
 module.exports = {
   detectThreeBlackCrows,
+  filterTemporalDuplicates,
   spec
 };

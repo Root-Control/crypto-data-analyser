@@ -176,37 +176,23 @@ async function runMarubozuBacktestOnly(forceRefresh = false) {
     const allDetections = await scanAllPatterns(candles, detectors);
     
     // STEP 7: Filter only Marubozu patterns for report
-    console.log('🔍 Filtering Marubozu patterns from all detections...');
-    const marubozuDetections = allDetections.filter(d => d.name === 'marubozu');
+    // STEP 7: Generate pattern reports by category
+    console.log('📄 Generating pattern reports...');
+    await generateCategoryReports(allDetections);
     
-    // STEP 8: Generate simple Marubozu report
-    console.log('📄 Generating Marubozu candle report...');
-    await generateMarubozuCandleReport(marubozuDetections);
-    
-    // STEP 9: Console summary
+    // STEP 8: Console summary
     console.log('✅ Pattern detection completed successfully!');
     console.log(`📊 Total patterns found: ${allDetections.length}`);
-    console.log(`📊 Marubozu patterns: ${marubozuDetections.length}`);
     
-    // Show pattern counts by type
-    const typeCounts = allDetections.reduce((acc, detection) => {
-      acc[detection.type] = (acc[detection.type] || 0) + 1;
-      return acc;
-    }, {});
-    
-    console.log('\n📈 Pattern counts by type:');
-    Object.entries(typeCounts).forEach(([type, count]) => {
-      console.log(`  ${type}: ${count} detections`);
+    // Count patterns by type
+    const patternCounts = {};
+    allDetections.forEach(detection => {
+      patternCounts[detection.type] = (patternCounts[detection.type] || 0) + 1;
     });
     
-    // Show first 10 Marubozu detections
-    console.log('\n📍 First 10 Marubozu detections:');
-    marubozuDetections.slice(0, 10).forEach((detection, index) => {
-      console.log(`  ${index + 1}. Index: ${detection.index}`);
-      console.log(`     Time Peru: ${convertTimestampToLima(detection.candle.timestamp)}`);
-      console.log(`     Time Mexico: ${convertTimestampToMexico(detection.candle.timestamp)}`);
-      console.log(`     OHLC: O:$${detection.candle.open.toFixed(2)} H:$${detection.candle.high.toFixed(2)} L:$${detection.candle.low.toFixed(2)} C:$${detection.candle.close.toFixed(2)}`);
-      console.log(`     Direction: ${detection.candle.close > detection.candle.open ? 'BULLISH' : 'BEARISH'}`);
+    console.log('\n📈 Pattern counts by type:');
+    Object.entries(patternCounts).forEach(([type, count]) => {
+      console.log(`  ${type}: ${count} detections`);
     });
     
   } catch (error) {
@@ -708,11 +694,13 @@ async function scanTripleCandlePatterns(candles, detectors, startIndex = 0) {
   const detections = [];
   
   for (const detector of detectors) {
+    const patternDetections = [];
+    
     for (let i = 0; i < candles.length - detector.minCandles + 1; i++) {
       try {
         const result = detector.detect(candles, i);
         if (result.match) {
-          detections.push({
+          patternDetections.push({
             name: detector.name,
             type: detector.type,
             index: startIndex + i,
@@ -727,6 +715,15 @@ async function scanTripleCandlePatterns(candles, detectors, startIndex = 0) {
       } catch (error) {
         // Skip problematic patterns
       }
+    }
+    
+    // Apply temporal duplicate filtering for Three Black Crows
+    if (detector.name === 'three-black-crows' && patternDetections.length > 0) {
+      const { filterTemporalDuplicates } = require('../triple-candle/three-black-crows');
+      const filteredDetections = filterTemporalDuplicates(patternDetections);
+      detections.push(...filteredDetections);
+    } else {
+      detections.push(...patternDetections);
     }
   }
   
