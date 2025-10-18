@@ -6,12 +6,13 @@
 const { isBearish, isBullish, calculateBodySize } = require('../utils');
 
 function detectDarkCloudCover(candles, index) {
-  if (index + 1 >= candles.length) {
+  // Detect AFTER the second candle has occurred
+  if (index < 1 || index >= candles.length) {
     return { match: false, confidence: 0, meta: {} };
   }
 
-  const candle1 = candles[index];     // Bullish candle
-  const candle2 = candles[index + 1]; // Bearish candle
+  const candle1 = candles[index - 1];  // Bullish candle (1 period ago)
+  const candle2 = candles[index];      // Bearish candle (current/just completed)
 
   // Dark Cloud Cover criteria:
   // 1. First candle: bullish

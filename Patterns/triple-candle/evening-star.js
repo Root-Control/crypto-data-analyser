@@ -6,13 +6,14 @@
 const { isBearish, isBullish, calculateBodySize, calculateBodyRatio } = require('../utils');
 
 function detectEveningStar(candles, index) {
-  if (index + 2 >= candles.length) {
+  // Detect AFTER the third candle has occurred
+  if (index < 2 || index >= candles.length) {
     return { match: false, confidence: 0, meta: {} };
   }
 
-  const candle1 = candles[index];     // First bullish candle
-  const candle2 = candles[index + 1]; // Small doji/gap candle
-  const candle3 = candles[index + 2]; // Bearish candle
+  const candle1 = candles[index - 2];  // First bullish candle (2 periods ago)
+  const candle2 = candles[index - 1];  // Small doji/gap candle (1 period ago)
+  const candle3 = candles[index];      // Bearish candle (current/just completed)
 
   // Evening Star criteria:
   // 1. First candle: bullish

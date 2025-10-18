@@ -6,12 +6,13 @@
 const { isEngulfing, isBullish, isBearish, calculateBodySize } = require('../utils');
 
 function detectEngulfing(candles, index) {
-  if (index + 1 >= candles.length) {
+  // Detect AFTER the second candle has occurred
+  if (index < 1 || index >= candles.length) {
     return { match: false, confidence: 0, meta: {} };
   }
 
-  const candle1 = candles[index];
-  const candle2 = candles[index + 1];
+  const candle1 = candles[index - 1];  // First candle (1 period ago)
+  const candle2 = candles[index];      // Second candle (current/just completed)
   
   // Check if candle2 engulfs candle1
   const engulfingMatch = isEngulfing(candle1, candle2);

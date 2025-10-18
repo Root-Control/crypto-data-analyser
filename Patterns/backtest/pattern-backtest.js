@@ -4,6 +4,9 @@
  * STAGE 2: Historical data ingestion, Redis storage, pattern scanning, and beautiful PDF reporting
  */
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -38,7 +41,7 @@ const { backtestPatternDetections, generateBacktestStats, generateBacktestReport
 let redisClient = null;
 
 /**
- * MAIN BACKTEST PROCESS
+ * ORIGINAL COMPREHENSIVE BACKTEST PROCESS
  */
 
 async function runPatternBacktest(forceRefresh = false) {
@@ -75,7 +78,7 @@ async function runPatternBacktest(forceRefresh = false) {
     const detectors = await loadPatternDetectors();
     
     // STEP 6: Scan for patterns
-    console.log('🔎 Scanning for patterns in 20,000 historical candles...');
+    console.log(`🔎 Scanning for patterns in ${candles.length} historical candles...`);
     const detections = await scanAllPatterns(candles, detectors);
     
     // STEP 7: Generate beautiful PDF reports by category
@@ -132,6 +135,91 @@ async function runPatternBacktest(forceRefresh = false) {
 }
 
 /**
+ * SIMPLIFIED MARUBOZU BACKTEST PROCESS
+ */
+
+async function runMarubozuBacktestOnly(forceRefresh = false) {
+  console.log('Starting Simplified Marubozu Pattern Detection...');
+  
+  try {
+    // STEP 1: Initialize Redis connection
+    await initializeRedis();
+    
+    // STEP 2: Check if data exists in Redis (unless forced refresh)
+    let candles = null;
+    
+    if (forceRefresh) {
+      console.log('🔄 Force refresh enabled, bypassing cache...');
+    } else {
+      console.log('🔍 Checking Redis cache for existing data...');
+      candles = await getCandlesFromRedis();
+    }
+    
+    if (!candles) {
+      // STEP 3: Historical Data Ingestion (only if not in cache or forced)
+      console.log('📊 Fetching fresh historical data from Binance...');
+      candles = await fetchHistoricalDataWithValidation();
+      
+      // STEP 4: Store in Redis WITHOUT TTL (permanent cache)
+      console.log('💾 Storing candles in Redis WITHOUT TTL...');
+      await storeCandlesInRedisPermanent(candles);
+    } else {
+      console.log('Using cached data, skipping API calls');
+    }
+    
+    // STEP 5: Load ALL pattern detectors
+    console.log('🔍 Loading ALL pattern detectors...');
+    const detectors = await loadPatternDetectors();
+    
+    // STEP 6: Scan for ALL patterns
+    console.log(`🔎 Scanning for ALL patterns in ${candles.length} historical candles...`);
+    const allDetections = await scanAllPatterns(candles, detectors);
+    
+    // STEP 7: Filter only Marubozu patterns for report
+    console.log('🔍 Filtering Marubozu patterns from all detections...');
+    const marubozuDetections = allDetections.filter(d => d.name === 'marubozu');
+    
+    // STEP 8: Generate simple Marubozu report
+    console.log('📄 Generating Marubozu candle report...');
+    await generateMarubozuCandleReport(marubozuDetections);
+    
+    // STEP 9: Console summary
+    console.log('✅ Pattern detection completed successfully!');
+    console.log(`📊 Total patterns found: ${allDetections.length}`);
+    console.log(`📊 Marubozu patterns: ${marubozuDetections.length}`);
+    
+    // Show pattern counts by type
+    const typeCounts = allDetections.reduce((acc, detection) => {
+      acc[detection.type] = (acc[detection.type] || 0) + 1;
+      return acc;
+    }, {});
+    
+    console.log('\n📈 Pattern counts by type:');
+    Object.entries(typeCounts).forEach(([type, count]) => {
+      console.log(`  ${type}: ${count} detections`);
+    });
+    
+    // Show first 10 Marubozu detections
+    console.log('\n📍 First 10 Marubozu detections:');
+    marubozuDetections.slice(0, 10).forEach((detection, index) => {
+      console.log(`  ${index + 1}. Index: ${detection.index}`);
+      console.log(`     Time Peru: ${convertTimestampToLima(detection.candle.timestamp)}`);
+      console.log(`     Time Mexico: ${convertTimestampToMexico(detection.candle.timestamp)}`);
+      console.log(`     OHLC: O:$${detection.candle.open.toFixed(2)} H:$${detection.candle.high.toFixed(2)} L:$${detection.candle.low.toFixed(2)} C:$${detection.candle.close.toFixed(2)}`);
+      console.log(`     Direction: ${detection.candle.close > detection.candle.open ? 'BULLISH' : 'BEARISH'}`);
+    });
+    
+  } catch (error) {
+    console.error('❌ Marubozu backtest failed:', error.message);
+    throw error;
+  } finally {
+    if (redisClient) {
+      await redisClient.quit();
+    }
+  }
+}
+
+/**
  * HELPER FUNCTIONS IMPLEMENTATION
  */
 
@@ -158,8 +246,8 @@ async function fetchHistoricalDataWithValidation() {
   const symbol = 'ETHUSDT';
   const interval = '15m';
   const limit = 1000; // 1000 candles per request (Binance limit)
-  const totalCandles = 20000; // Total target
-  const iterations = 20; // 20 iterations * 1000 = 20000
+  const totalCandles = 100000; // Total target: 100k candles
+  const iterations = 100; // 100 iterations * 1000 = 100000
   
   let allCandles = [];
   let duplicatesFound = 0;
@@ -175,7 +263,7 @@ async function fetchHistoricalDataWithValidation() {
   console.log(`📈 Fetching ${totalCandles} candles in ${iterations} batches...`);
   
   for (let i = 0; i < iterations; i++) {
-    console.log(`  Batch ${i + 1}/${iterations}...`);
+    console.log(`  Batch ${i + 1}/${iterations}... (${(i + 1) * 1000} candles so far)`);
     
     try {
       const url = `https://fapi.binance.com/fapi/v1/klines`;
@@ -282,15 +370,34 @@ async function storeCandlesInRedis(candles) {
   console.log(`✅ Stored ${candles.length} candles in Redis under key: ${key} (TTL: 2 hours)`);
 }
 
+async function storeCandlesInRedisPermanent(candles) {
+  const key = 'ETHUSD_HISTORICAL_CANDLES_PERMANENT';
+  await redisClient.set(key, JSON.stringify(candles));
+  console.log(`✅ Stored ${candles.length} candles in Redis under key: ${key} (NO TTL - Permanent)`);
+}
+
 async function getCandlesFromRedis() {
-  const key = 'ETHUSD_HISTORICAL_CANDLES';
+  // First try permanent cache, then temporary cache
+  const permanentKey = 'ETHUSD_HISTORICAL_CANDLES_PERMANENT';
+  const tempKey = 'ETHUSD_HISTORICAL_CANDLES';
+  
   try {
-    const data = await redisClient.get(key);
+    // Try permanent cache first
+    let data = await redisClient.get(permanentKey);
     if (data) {
       const candles = JSON.parse(data);
-      console.log(`✅ Found ${candles.length} candles in Redis cache`);
+      console.log(`✅ Found ${candles.length} candles in Redis permanent cache`);
       return candles;
     }
+    
+    // Try temporary cache
+    data = await redisClient.get(tempKey);
+    if (data) {
+      const candles = JSON.parse(data);
+      console.log(`✅ Found ${candles.length} candles in Redis temporary cache`);
+      return candles;
+    }
+    
     return null;
   } catch (error) {
     console.error('Error reading from Redis:', error.message);
@@ -301,6 +408,35 @@ async function getCandlesFromRedis() {
 /**
  * Pattern Loading Functions
  */
+async function loadMarubozuDetector() {
+  const marubozuPath = path.join(__dirname, '..', 'single-candle', 'marubozu.js');
+  
+  try {
+    const pattern = require(marubozuPath);
+    
+    // Find the detection function
+    const detectionFunction = Object.values(pattern).find(
+      value => typeof value === 'function' && value.name.startsWith('detect')
+    );
+    
+    if (detectionFunction && pattern.spec) {
+      console.log('✅ Loaded Marubozu detector');
+      return {
+        name: pattern.spec.name,
+        type: pattern.spec.type,
+        minCandles: pattern.spec.minCandles,
+        detect: detectionFunction,
+        spec: pattern.spec
+      };
+    }
+    
+    throw new Error('Marubozu detector not found or invalid');
+  } catch (error) {
+    console.error('Error loading Marubozu detector:', error.message);
+    throw error;
+  }
+}
+
 async function loadPatternDetectors() {
   const detectors = {
     'single-candle': [],
@@ -353,28 +489,121 @@ async function loadPatternDetectors() {
 /**
  * Pattern Scanning Functions
  */
-async function scanAllPatterns(candles, detectors) {
+async function scanMarubozuPatterns(candles, marubozuDetector) {
   const detections = [];
   
-  // Scan single-candle patterns
-  console.log('  Scanning single-candle patterns...');
-  const singleDetections = await scanSingleCandlePatterns(candles, detectors['single-candle']);
-  detections.push(...singleDetections);
+  console.log(`🔍 Scanning ${candles.length} candles for Marubozu patterns...`);
   
-  // Scan double-candle patterns
-  console.log('  Scanning double-candle patterns...');
-  const doubleDetections = await scanDoubleCandlePatterns(candles, detectors['double-candle']);
-  detections.push(...doubleDetections);
+  for (let i = 0; i < candles.length; i++) {
+    try {
+      const result = marubozuDetector.detect(candles, i);
+      if (result.match) {
+        detections.push({
+          name: marubozuDetector.name,
+          type: marubozuDetector.type,
+          index: i,
+          timestampLocal: convertTimestampToLima(candles[i].timestamp),
+          confidence: result.confidence,
+          meta: result.meta,
+          typicalPrediction: marubozuDetector.spec.typicalPrediction,
+          commonContext: marubozuDetector.spec.commonContext,
+          candle: candles[i]
+        });
+      }
+    } catch (error) {
+      // Skip problematic candles
+    }
+  }
   
-  // Scan triple-candle patterns
-  console.log('  Scanning triple-candle patterns...');
-  const tripleDetections = await scanTripleCandlePatterns(candles, detectors['triple-candle']);
-  detections.push(...tripleDetections);
+  console.log(`✅ Found ${detections.length} Marubozu patterns`);
+  return detections;
+}
+
+async function scanAllPatterns(candles, detectors) {
+  const detections = [];
+  const chunkSize = 50000; // Process in chunks of 50k candles
   
-  // Scan chart patterns
-  console.log('  Scanning chart patterns...');
-  const chartDetections = await scanChartPatterns(candles, detectors['chart-patterns']);
-  detections.push(...chartDetections);
+  // Load environment variables for scanning control
+  const scanSingle = process.env.SCAN_SINGLE === 'true' || process.env.SCAN_SINGLE === undefined;
+  const scanDouble = process.env.SCAN_DOUBLE === 'true' || process.env.SCAN_DOUBLE === undefined;
+  const scanTriple = process.env.SCAN_TRIPLE === 'true' || process.env.SCAN_TRIPLE === undefined;
+  const scanChart = process.env.SCAN_CHART === 'true' || process.env.SCAN_CHART === undefined;
+  
+  // Load MAX_QTY environment variable
+  const maxQty = process.env.MAX_QTY;
+  let candlesToProcess = candles;
+  
+  if (maxQty && maxQty !== '0' && maxQty.toLowerCase() !== 'infinity') {
+    const maxQtyNum = parseInt(maxQty);
+    if (!isNaN(maxQtyNum) && maxQtyNum > 0) {
+      // Take the LAST maxQtyNum candles instead of the first ones
+      candlesToProcess = candles.slice(-maxQtyNum);
+      console.log(`🔢 MAX_QTY limit applied: processing LAST ${candlesToProcess.length} candles (from ${candles.length} total)`);
+      console.log(`📅 Date range: ${new Date(candlesToProcess[0].timestamp).toLocaleString()} to ${new Date(candlesToProcess[candlesToProcess.length - 1].timestamp).toLocaleString()}`);
+    }
+  } else if (maxQty === '0' || maxQty.toLowerCase() === 'infinity') {
+    console.log(`🔢 MAX_QTY set to ${maxQty}: processing ALL ${candles.length} candles`);
+  }
+  
+  console.log(`📊 Processing ${candlesToProcess.length} candles in chunks of ${chunkSize}...`);
+  console.log(`🔧 Scanning configuration:`);
+  console.log(`   Single-candle: ${scanSingle ? '✅ ENABLED' : '❌ DISABLED'}`);
+  console.log(`   Double-candle: ${scanDouble ? '✅ ENABLED' : '❌ DISABLED'}`);
+  console.log(`   Triple-candle: ${scanTriple ? '✅ ENABLED' : '❌ DISABLED'}`);
+  console.log(`   Chart patterns: ${scanChart ? '✅ ENABLED' : '❌ DISABLED'}`);
+  
+  for (let i = 0; i < candlesToProcess.length; i += chunkSize) {
+    const chunk = candlesToProcess.slice(i, i + chunkSize);
+    const chunkNumber = Math.floor(i / chunkSize) + 1;
+    const totalChunks = Math.ceil(candlesToProcess.length / chunkSize);
+    const startIndex = i; // Global start index for this chunk
+    
+    console.log(`  🔍 Processing chunk ${chunkNumber}/${totalChunks} (${chunk.length} candles, global index ${startIndex}-${startIndex + chunk.length - 1})...`);
+    
+    let chunkDetections = 0;
+    
+    // Scan single-candle patterns
+    if (scanSingle) {
+      console.log('    Scanning single-candle patterns...');
+      const singleDetections = await scanSingleCandlePatterns(chunk, detectors['single-candle'], startIndex);
+      detections.push(...singleDetections);
+      chunkDetections += singleDetections.length;
+    } else {
+      console.log('    ⏭️  Skipping single-candle patterns (disabled)');
+    }
+    
+    // Scan double-candle patterns
+    if (scanDouble) {
+      console.log('    Scanning double-candle patterns...');
+      const doubleDetections = await scanDoubleCandlePatterns(chunk, detectors['double-candle'], startIndex);
+      detections.push(...doubleDetections);
+      chunkDetections += doubleDetections.length;
+    } else {
+      console.log('    ⏭️  Skipping double-candle patterns (disabled)');
+    }
+    
+    // Scan triple-candle patterns
+    if (scanTriple) {
+      console.log('    Scanning triple-candle patterns...');
+      const tripleDetections = await scanTripleCandlePatterns(chunk, detectors['triple-candle'], startIndex);
+      detections.push(...tripleDetections);
+      chunkDetections += tripleDetections.length;
+    } else {
+      console.log('    ⏭️  Skipping triple-candle patterns (disabled)');
+    }
+    
+    // Scan chart patterns
+    if (scanChart) {
+      console.log('    Scanning chart patterns...');
+      const chartDetections = await scanChartPatterns(chunk, detectors['chart-patterns'], startIndex);
+      detections.push(...chartDetections);
+      chunkDetections += chartDetections.length;
+    } else {
+      console.log('    ⏭️  Skipping chart patterns (disabled)');
+    }
+    
+    console.log(`    ✅ Chunk ${chunkNumber}/${totalChunks} completed (${chunkDetections} detections)`);
+  }
   
   return detections;
 }
@@ -402,7 +631,7 @@ function getPatternPriority(patternName) {
   return priorities[patternName] || 50;
 }
 
-async function scanSingleCandlePatterns(candles, detectors) {
+async function scanSingleCandlePatterns(candles, detectors, startIndex = 0) {
   const detections = [];
   
   for (let i = 0; i < candles.length; i++) {
@@ -422,7 +651,7 @@ async function scanSingleCandlePatterns(candles, detectors) {
             bestMatch = {
             name: detector.name,
             type: detector.type,
-            index: i,
+            index: startIndex + i, // Use global index
             timestampLocal: convertTimestampToLima(candles[i].timestamp),
             confidence: result.confidence,
             meta: result.meta,
@@ -446,7 +675,7 @@ async function scanSingleCandlePatterns(candles, detectors) {
   return detections;
 }
 
-async function scanDoubleCandlePatterns(candles, detectors) {
+async function scanDoubleCandlePatterns(candles, detectors, startIndex = 0) {
   const detections = [];
   
   for (let i = 0; i < candles.length - 1; i++) {
@@ -457,7 +686,7 @@ async function scanDoubleCandlePatterns(candles, detectors) {
           detections.push({
             name: detector.name,
             type: detector.type,
-            index: i,
+            index: startIndex + i,
             timestampLocal: convertTimestampToLima(candles[i].timestamp),
             confidence: result.confidence,
             meta: result.meta,
@@ -475,7 +704,7 @@ async function scanDoubleCandlePatterns(candles, detectors) {
   return detections;
 }
 
-async function scanTripleCandlePatterns(candles, detectors) {
+async function scanTripleCandlePatterns(candles, detectors, startIndex = 0) {
   const detections = [];
   
   for (const detector of detectors) {
@@ -486,7 +715,7 @@ async function scanTripleCandlePatterns(candles, detectors) {
           detections.push({
             name: detector.name,
             type: detector.type,
-            index: i,
+            index: startIndex + i,
             timestampLocal: convertTimestampToLima(candles[i].timestamp),
             confidence: result.confidence,
             meta: result.meta,
@@ -504,7 +733,7 @@ async function scanTripleCandlePatterns(candles, detectors) {
   return detections;
 }
 
-async function scanChartPatterns(candles, detectors) {
+async function scanChartPatterns(candles, detectors, startIndex = 0) {
   const detections = [];
   
   console.log(`    📊 Scanning ${detectors.length} chart pattern detectors...`);
@@ -522,7 +751,7 @@ async function scanChartPatterns(candles, detectors) {
           detections.push({
             name: detector.name,
             type: detector.type,
-            index: i,
+            index: startIndex + i,
             timestampLocal: convertTimestampToLima(candles[i].timestamp),
             confidence: result.confidence,
             meta: result.meta,
@@ -541,6 +770,168 @@ async function scanChartPatterns(candles, detectors) {
   
   console.log(`    📈 Total chart patterns detected: ${detections.length}`);
   return detections;
+}
+
+/**
+ * Simple Marubozu Report Generation
+ */
+async function generateMarubozuCandleReport(marubozuDetections) {
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: 50, bottom: 50, left: 50, right: 50 }
+  });
+  
+  const reportsDir = path.join(__dirname, '..', 'Reports', 'single-candle', 'marubozu');
+  if (!fs.existsSync(reportsDir)) {
+    fs.mkdirSync(reportsDir, { recursive: true });
+  }
+  
+  const filename = 'marubozu-candle-report.pdf';
+  const filepath = path.join(reportsDir, filename);
+  
+  doc.pipe(fs.createWriteStream(filepath));
+  
+  // Header
+  doc.rect(0, 0, doc.page.width, 80)
+     .fill('#2c3e50');
+  
+  doc.fillColor('#ffffff')
+     .fontSize(24)
+     .font('Helvetica-Bold')
+     .text('MARUBOZU CANDLE REPORT', 50, 30);
+  
+  doc.fillColor('#ecf0f1')
+     .fontSize(12)
+     .font('Helvetica')
+     .text(`Total Marubozu Candles Found: ${marubozuDetections.length}`, 50, 55);
+  
+  let y = 100;
+  
+  // Summary info
+  doc.fillColor('#2c3e50')
+     .fontSize(16)
+     .font('Helvetica-Bold')
+     .text('SUMMARY', 50, y);
+  
+  y += 30;
+  
+  const bullishCount = marubozuDetections.filter(d => d.candle.close > d.candle.open).length;
+  const bearishCount = marubozuDetections.filter(d => d.candle.close < d.candle.open).length;
+  
+  doc.fillColor('#27ae60')
+     .fontSize(12)
+     .font('Helvetica-Bold')
+     .text(`Bullish Marubozu: ${bullishCount}`, 70, y);
+  
+  y += 20;
+  doc.fillColor('#e74c3c')
+     .fontSize(12)
+     .font('Helvetica-Bold')
+     .text(`Bearish Marubozu: ${bearishCount}`, 70, y);
+  
+  y += 40;
+  
+  // Detailed candle list
+  doc.fillColor('#2c3e50')
+     .fontSize(16)
+     .font('Helvetica-Bold')
+     .text('MARUBOZU CANDLE LOCATIONS', 50, y);
+  
+  y += 30;
+  
+  // Sort by index
+  const sortedDetections = marubozuDetections.sort((a, b) => b.index - a.index); // Más actual primero
+  
+  for (let i = 0; i < sortedDetections.length; i++) {
+    const detection = sortedDetections[i];
+    const candle = detection.candle;
+    const isBullish = candle.close > candle.open;
+    
+    // Detection box - taller for better layout
+    doc.rect(50, y, doc.page.width - 100, 115)
+       .fill(isBullish ? '#e8f5e8' : '#ffeaea')
+       .stroke(isBullish ? '#27ae60' : '#e74c3c');
+    
+    // Detection number and direction
+    doc.fillColor('#6c757d')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`#${i + 1}`, 60, y + 10);
+    
+    doc.fillColor(isBullish ? '#27ae60' : '#e74c3c')
+       .fontSize(12)
+       .font('Helvetica-Bold')
+       .text(`${isBullish ? 'BULLISH' : 'BEARISH'} MARUBOZU`, 80, y + 10);
+    
+    // Index
+    doc.fillColor('#495057')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`Index: ${detection.index}`, 60, y + 25);
+    
+    // Times in clean format
+    doc.fillColor('#495057').fontSize(9).font('Helvetica').text(`Peru: ${convertTimestampToLima(detection.candle.timestamp)}`, 60, y + 40);
+    doc.fillColor('#495057').fontSize(9).font('Helvetica').text(`Mexico: ${convertTimestampToMexico(detection.candle.timestamp)}`, 60, y + 50);
+    
+    // OHLC data in organized columns
+    doc.text(`Open: $${candle.open.toFixed(2)}`, 200, y + 25);
+    doc.text(`Close: $${candle.close.toFixed(2)}`, 200, y + 40);
+    
+    doc.text(`High: $${candle.high.toFixed(2)}`, 320, y + 25);
+    doc.text(`Low: $${candle.low.toFixed(2)}`, 320, y + 40);
+    
+    // Volume and confidence
+    doc.text(`Volume: ${candle.volume.toLocaleString()}`, 440, y + 25);
+    doc.fillColor('#7f8c8d')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`Confidence: ${(detection.confidence * 100).toFixed(1)}%`, 440, y + 40);
+    
+    // Prediction and context
+    doc.fillColor('#28a745')
+       .fontSize(10)
+       .font('Helvetica-Bold')
+       .text(`Prediction: ${detection.typicalPrediction}`, 60, y + 75);
+    
+    doc.fillColor('#6c757d')
+       .fontSize(9)
+       .font('Helvetica')
+       .text(`Context: ${detection.commonContext}`, 60, y + 90);
+    
+    y += 130;
+    
+    // Pagination
+    if (y > 650) {
+      doc.addPage();
+      y = 50;
+    }
+  }
+  
+  // Footer
+  try {
+    const pageRange = doc.bufferedPageRange();
+    if (pageRange && pageRange.count > 0) {
+      const startPage = pageRange.start || 0;
+      const pageCount = pageRange.count;
+      
+      for (let i = startPage; i < startPage + pageCount; i++) {
+        doc.switchToPage(i);
+        
+        doc.fillColor('#95a5a6')
+           .fontSize(8)
+           .font('Helvetica')
+           .text(`Page ${i - startPage + 1} of ${pageCount}`, 50, doc.page.height - 30);
+        
+        doc.text(`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/Lima' })}`, 
+                 doc.page.width - 200, doc.page.height - 30);
+      }
+    }
+  } catch (error) {
+    console.log('Could not add footer to PDF:', error.message);
+  }
+  
+  doc.end();
+  console.log(`✅ Generated Marubozu candle report: ${filepath}`);
 }
 
 /**
@@ -640,16 +1031,16 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
   y += 30;
   
   // Sort detections by timestamp
-  const sortedDetections = detections.sort((a, b) => a.index - b.index);
+  const sortedDetections = detections.sort((a, b) => b.index - a.index); // Más actual primero
   
   for (let i = 0; i < sortedDetections.length; i++) {
     const detection = sortedDetections[i];
     
-    // Detection box
-    doc.rect(50, y, doc.page.width - 100, 95)
+    // Detection box - taller to accommodate better layout
+    doc.rect(50, y, doc.page.width - 100, 115)
        .fill('#f8f9fa');
     
-    doc.rect(50, y, doc.page.width - 100, 95)
+    doc.rect(50, y, doc.page.width - 100, 115)
        .stroke('#dee2e6');
     
     // Detection number
@@ -658,44 +1049,50 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
        .font('Helvetica')
        .text(`#${i + 1}`, 60, y + 10);
     
-    // Pattern name and type
-    doc.fillColor('#2c3e50')
-       .fontSize(12)
-       .font('Helvetica-Bold')
-       .text(`${detection.name.toUpperCase()}`, 80, y + 10);
-    
-    doc.fillColor('#6c757d')
-       .fontSize(10)
-       .font('Helvetica')
-       .text(`Type: ${detection.type}`, 80, y + 25);
-    
-    // Time and index
+    // Index
     doc.fillColor('#495057')
        .fontSize(10)
        .font('Helvetica')
-       .text(`Time: ${detection.timestampLocal}`, 60, y + 40);
+       .text(`Index: ${detection.index}`, 80, y + 10);
     
-    doc.text(`Index: ${detection.index}`, 60, y + 55);
+    // Times in a clean column
+    doc.fillColor('#495057').fontSize(9).font('Helvetica').text(`Peru: ${convertTimestampToLima(detection.candle.timestamp)}`, 60, y + 25);
+    doc.fillColor('#495057').fontSize(9).font('Helvetica').text(`Mexico: ${convertTimestampToMexico(detection.candle.timestamp)}`, 60, y + 35);
     
-    // OHLC data
-    doc.text(`Open: $${detection.candle.open.toFixed(2)}`, 200, y + 40);
-    doc.text(`Close: $${detection.candle.close.toFixed(2)}`, 200, y + 55);
+    // OHLC data in organized columns
+    doc.text(`Open: $${detection.candle.open.toFixed(2)}`, 200, y + 25);
+    doc.text(`Close: $${detection.candle.close.toFixed(2)}`, 200, y + 40);
     
-    doc.text(`High: $${detection.candle.high.toFixed(2)}`, 320, y + 40);
-    doc.text(`Low: $${detection.candle.low.toFixed(2)}`, 320, y + 55);
+    doc.text(`High: $${detection.candle.high.toFixed(2)}`, 320, y + 25);
+    doc.text(`Low: $${detection.candle.low.toFixed(2)}`, 320, y + 40);
     
-    // Prediction and context
+    // Volume
+    doc.text(`Volume: ${detection.candle.volume.toLocaleString()}`, 440, y + 25);
+    
+    // Confidence
+    doc.fillColor('#7f8c8d')
+       .fontSize(10)
+       .font('Helvetica')
+       .text(`Confidence: ${(detection.confidence * 100).toFixed(1)}%`, 440, y + 40);
+    
+    // Prediction and context on separate lines
     doc.fillColor('#28a745')
        .fontSize(10)
        .font('Helvetica-Bold')
-       .text(`Prediction: ${detection.typicalPrediction}`, 60, y + 70);
+       .text(`Prediction: ${detection.typicalPrediction}`, 60, y + 60);
     
     doc.fillColor('#6c757d')
        .fontSize(9)
        .font('Helvetica')
-       .text(`Context: ${detection.commonContext}`, 60, y + 85);
+       .text(`Context: ${detection.commonContext}`, 60, y + 75);
     
-    y += 110;
+    // Additional info line
+    doc.fillColor('#495057')
+       .fontSize(9)
+       .font('Helvetica')
+       .text(`Direction: ${detection.candle.close > detection.candle.open ? 'BULLISH' : 'BEARISH'}`, 60, y + 90);
+    
+    y += 130;
     
     // Pagination
     if (y > 650) {
@@ -1217,25 +1614,47 @@ async function generateMainSummaryReport(detections, totalCandles) {
  */
 function convertTimestampToLima(timestamp) {
   const date = new Date(timestamp);
-  return date.toLocaleString('en-US', { 
-    timeZone: 'America/Lima',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
+  
+  // Convert to Lima timezone
+  const limaDate = new Date(date.toLocaleString("en-US", {timeZone: "America/Lima"}));
+  const limaDay = limaDate.getDate().toString().padStart(2, '0');
+  const limaMonth = (limaDate.getMonth() + 1).toString().padStart(2, '0');
+  const limaYear = limaDate.getFullYear();
+  const limaHours = limaDate.getHours().toString().padStart(2, '0');
+  const limaMinutes = limaDate.getMinutes().toString().padStart(2, '0');
+  const limaSeconds = limaDate.getSeconds().toString().padStart(2, '0');
+  
+  return `${limaDay}/${limaMonth}/${limaYear} ${limaHours}:${limaMinutes}:${limaSeconds}`;
 }
 
-// Export main function
+function convertTimestampToMexico(timestamp) {
+  const date = new Date(timestamp);
+  
+  // Convert to Mexico timezone
+  const mexicoDate = new Date(date.toLocaleString("en-US", {timeZone: "America/Mexico_City"}));
+  const mexicoDay = mexicoDate.getDate().toString().padStart(2, '0');
+  const mexicoMonth = (mexicoDate.getMonth() + 1).toString().padStart(2, '0');
+  const mexicoYear = mexicoDate.getFullYear();
+  const mexicoHours = mexicoDate.getHours().toString().padStart(2, '0');
+  const mexicoMinutes = mexicoDate.getMinutes().toString().padStart(2, '0');
+  const mexicoSeconds = mexicoDate.getSeconds().toString().padStart(2, '0');
+  
+  return `${mexicoDay}/${mexicoMonth}/${mexicoYear} ${mexicoHours}:${mexicoMinutes}:${mexicoSeconds}`;
+}
+
+// Export main functions
 module.exports = {
-  runPatternBacktest,
+  runMarubozuBacktestOnly,  // New simplified function
+  runPatternBacktest,       // Original comprehensive function
   initializeRedis,
   fetchHistoricalData,
   fetchHistoricalDataWithValidation,
   storeCandlesInRedis,
+  storeCandlesInRedisPermanent,
   getCandlesFromRedis,
+  loadMarubozuDetector,
+  scanMarubozuPatterns,
+  generateMarubozuCandleReport,
   loadPatternDetectors,
   scanAllPatterns,
   scanSingleCandlePatterns,
@@ -1272,8 +1691,8 @@ async function runMarubozuBacktest(detections, allCandles) {
   
   // Run backtesting
   const backtestResults = backtestPatternDetections(marubozuDetections, allCandles, {
-    stopLossPercent: 0.01, // 1%
-    takeProfitPercent: 0.01, // 1%
+    stopLossPercent: 0.01,
+    takeProfitPercent: 0.01,
     evaluationCandles: 5 // Evaluate next 5 candles
   });
   
@@ -1284,10 +1703,11 @@ async function runMarubozuBacktest(detections, allCandles) {
   console.log(`   Total Trades: ${stats.total}`);
   console.log(`   Wins: ${stats.wins} (${stats.winRate.toFixed(1)}%)`);
   console.log(`   Losses: ${stats.losses} (${stats.lossRate.toFixed(1)}%)`);
-  console.log(`   Unknown: ${stats.unknowns} (${stats.unknownRate.toFixed(1)}%)`);
+  console.log(`   Exit Price: ${stats.exitPrice} (${stats.exitPriceRate.toFixed(1)}%)`);
   console.log(`   Total P&L: ${stats.totalPnL.toFixed(2)}%`);
   console.log(`   Avg Win P&L: ${stats.avgWinPnL.toFixed(2)}%`);
   console.log(`   Avg Loss P&L: ${stats.avgLossPnL.toFixed(2)}%`);
+  console.log(`   Avg Exit Price P&L: ${stats.avgExitPricePnL.toFixed(2)}%`);
   
   // Generate backtest reports
   await generateBacktestReport('marubozu', backtestResults, stats, allCandles);
@@ -1625,5 +2045,5 @@ function detectDecliningContext(previousCandles, isBullish) {
 // Run if called directly
 if (require.main === module) {
   const args = parseArgs();
-  runPatternBacktest(args.force).catch(console.error);
+  runMarubozuBacktestOnly(args.force).catch(console.error);
 }

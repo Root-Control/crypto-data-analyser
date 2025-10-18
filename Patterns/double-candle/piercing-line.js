@@ -6,12 +6,13 @@
 const { isBearish, isBullish, calculateBodySize } = require('../utils');
 
 function detectPiercingLine(candles, index) {
-  if (index + 1 >= candles.length) {
+  // Detect AFTER the second candle has occurred
+  if (index < 1 || index >= candles.length) {
     return { match: false, confidence: 0, meta: {} };
   }
 
-  const candle1 = candles[index];     // Bearish candle
-  const candle2 = candles[index + 1]; // Bullish candle
+  const candle1 = candles[index - 1];  // Bearish candle (1 period ago)
+  const candle2 = candles[index];      // Bullish candle (current/just completed)
 
   // Piercing Line criteria:
   // 1. First candle: bearish

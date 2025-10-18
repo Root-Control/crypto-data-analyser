@@ -6,13 +6,14 @@
 const { isBullish, calculateBodySize } = require('../utils');
 
 function detectThreeWhiteSoldiers(candles, index) {
-  if (index + 2 >= candles.length) {
+  // Detect AFTER the third candle has occurred
+  if (index < 2 || index >= candles.length) {
     return { match: false, confidence: 0, meta: {} };
   }
 
-  const candle1 = candles[index];
-  const candle2 = candles[index + 1];
-  const candle3 = candles[index + 2];
+  const candle1 = candles[index - 2];  // First candle (2 periods ago)
+  const candle2 = candles[index - 1];  // Second candle (1 period ago)
+  const candle3 = candles[index];      // Third candle (current/just completed)
 
   // Three White Soldiers criteria:
   // 1. All three candles: bullish

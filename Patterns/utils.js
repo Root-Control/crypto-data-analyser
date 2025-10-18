@@ -182,6 +182,46 @@ function isTweezers(candle1, candle2, tolerance = 0.002) {
   return highSimilar || lowSimilar;
 }
 
+/**
+ * ATR (Average True Range) Calculation
+ */
+function calculateATR(candles, period = 14) {
+  if (candles.length < period + 1) return 0;
+  
+  const trueRanges = [];
+  for (let i = 1; i < candles.length; i++) {
+    const current = candles[i];
+    const previous = candles[i - 1];
+    
+    const tr1 = current.high - current.low;
+    const tr2 = Math.abs(current.high - previous.close);
+    const tr3 = Math.abs(current.low - previous.close);
+    
+    const trueRange = Math.max(tr1, tr2, tr3);
+    trueRanges.push(trueRange);
+  }
+  
+  // Calculate ATR as simple moving average of true ranges
+  const atrValues = trueRanges.slice(-period);
+  return atrValues.reduce((sum, tr) => sum + tr, 0) / atrValues.length;
+}
+
+/**
+ * Calculate median body size from last N candles
+ */
+function calculateMedianBody(candles, period = 20) {
+  if (candles.length < period) return 0;
+  
+  const recentCandles = candles.slice(-period);
+  const bodySizes = recentCandles.map(candle => calculateBodySize(candle));
+  bodySizes.sort((a, b) => a - b);
+  
+  const mid = Math.floor(bodySizes.length / 2);
+  return bodySizes.length % 2 === 0 
+    ? (bodySizes[mid - 1] + bodySizes[mid]) / 2 
+    : bodySizes[mid];
+}
+
 module.exports = {
   // Candle calculations
   calculateBodySize,
@@ -212,5 +252,9 @@ module.exports = {
   
   // Tolerance calculations
   calculatePriceTolerance,
-  isWithinTolerance
+  isWithinTolerance,
+  
+  // Advanced calculations
+  calculateATR,
+  calculateMedianBody
 };

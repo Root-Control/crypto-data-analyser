@@ -80,8 +80,8 @@ function calculateVolumeRatio(detection, allCandles) {
  */
 function backtestPattern(detection, allCandles, options = {}) {
   const {
-    stopLossPercent = 0.0085, // 0.85%
-    takeProfitPercent = 0.01105, // 1.105% (1.3 * 0.85%)
+    stopLossPercent = 0.005, // 0.5%
+    takeProfitPercent = 0.10, // 10% (20 * 0.5%) - EPIC MODE! 🚀
     evaluationCandles = 10 // Evaluate next 10 candles
   } = options;
 
@@ -263,16 +263,20 @@ function backtestPatternDetections(detections, allCandles, options = {}) {
  */
 function generateBacktestStats(backtestResults) {
   const total = backtestResults.length;
-  const wins = backtestResults.filter(r => r.result === 'WIN' || (r.result === 'UNKNOWN' && r.pnl > 0)).length;
-  const losses = backtestResults.filter(r => r.result === 'LOSS' || (r.result === 'UNKNOWN' && r.pnl < 0)).length;
-  const unknowns = backtestResults.filter(r => r.result === 'UNKNOWN' && r.pnl === 0).length;
+  
+  // Separate into three distinct categories
+  const wins = backtestResults.filter(r => r.result === 'WIN').length;
+  const losses = backtestResults.filter(r => r.result === 'LOSS').length;
+  const exitPrice = backtestResults.filter(r => r.result === 'UNKNOWN').length;
+  
   const winRate = total > 0 ? (wins / total) * 100 : 0;
   const lossRate = total > 0 ? (losses / total) * 100 : 0;
-  const unknownRate = total > 0 ? (unknowns / total) * 100 : 0;
+  const exitPriceRate = total > 0 ? (exitPrice / total) * 100 : 0;
   
-  // Calculate average P&L for wins and losses (including UNKNOWN with P&L)
-  const winResults = backtestResults.filter(r => r.result === 'WIN' || (r.result === 'UNKNOWN' && r.pnl > 0));
-  const lossResults = backtestResults.filter(r => r.result === 'LOSS' || (r.result === 'UNKNOWN' && r.pnl < 0));
+  // Calculate P&L for each category separately
+  const winResults = backtestResults.filter(r => r.result === 'WIN');
+  const lossResults = backtestResults.filter(r => r.result === 'LOSS');
+  const exitPriceResults = backtestResults.filter(r => r.result === 'UNKNOWN');
   
   const avgWinPnL = winResults.length > 0 
     ? winResults.reduce((sum, r) => sum + r.pnl, 0) / winResults.length 
@@ -281,6 +285,10 @@ function generateBacktestStats(backtestResults) {
   const avgLossPnL = lossResults.length > 0 
     ? lossResults.reduce((sum, r) => sum + r.pnl, 0) / lossResults.length 
     : 0;
+    
+  const avgExitPricePnL = exitPriceResults.length > 0 
+    ? exitPriceResults.reduce((sum, r) => sum + r.pnl, 0) / exitPriceResults.length 
+    : 0;
   
   const totalPnL = backtestResults.reduce((sum, r) => sum + r.pnl, 0);
   
@@ -288,12 +296,13 @@ function generateBacktestStats(backtestResults) {
     total,
     wins,
     losses,
-    unknowns,
+    exitPrice,
     winRate,
     lossRate,
-    unknownRate,
+    exitPriceRate,
     avgWinPnL,
     avgLossPnL,
+    avgExitPricePnL,
     totalPnL
   };
 }
@@ -332,17 +341,17 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
   
   // Customize title based on report type
   let title = `${patternName.toUpperCase()} BACKTEST REPORT`;
-  let subtitle = `Pattern Performance Analysis with 0.85% Stop Loss & 1.105% Take Profit (5 candles evaluation)`;
+  let subtitle = `Pattern Performance Analysis with 0.5% Stop Loss & 10% Take Profit (5 candles evaluation) - EPIC MODE! 🚀`;
   
   if (patternName.includes('-win')) {
     title = `${patternName.replace('-win', '').toUpperCase()} WINNING TRADES`;
-    subtitle = `Successful trades that hit Take Profit (1.105%)`;
+    subtitle = `Successful trades that hit Take Profit (10%) - LEGENDARY! 🏆`;
   } else if (patternName.includes('-loss')) {
     title = `${patternName.replace('-loss', '').toUpperCase()} LOSING TRADES`;
-    subtitle = `Failed trades that hit Stop Loss (0.85%)`;
+    subtitle = `Failed trades that hit Stop Loss (0.5%)`;
   } else if (patternName.includes('-unknown')) {
     title = `${patternName.replace('-unknown', '').toUpperCase()} UNKNOWN TRADES`;
-    subtitle = `Trades that didn't reach Stop Loss (0.85%) or Take Profit (1.105%) in 5 candles`;
+    subtitle = `Trades that didn't reach Stop Loss (0.5%) or Take Profit (10%) in 5 candles`;
   }
   
   doc.fillColor('#ffffff')
@@ -376,7 +385,7 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
        .font('Helvetica-Bold')
        .text(`TOTAL TRADES: ${stats.total}`, 70, y);
   } else {
-    // For main reports, show all statistics
+    // For main reports, show all statistics with three categories
     doc.fillColor('#27ae60')
        .fontSize(14)
        .font('Helvetica-Bold')
@@ -387,10 +396,10 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
        .font('Helvetica-Bold')
        .text(`LOSSES: ${stats.losses} (${stats.lossRate.toFixed(1)}%)`, 200, y);
     
-    doc.fillColor('#95a5a6')
+    doc.fillColor('#f39c12')
        .fontSize(14)
        .font('Helvetica-Bold')
-       .text(`UNKNOWN: ${stats.unknowns} (${stats.unknownRate.toFixed(1)}%)`, 330, y);
+       .text(`EXIT PRICE: ${stats.exitPrice} (${stats.exitPriceRate.toFixed(1)}%)`, 330, y);
   }
   
   y += 25;
@@ -410,6 +419,16 @@ async function generateBacktestReport(patternName, backtestResults, stats, allCa
      .fontSize(12)
      .font('Helvetica')
      .text(`Avg Loss P&L: ${stats.avgLossPnL.toFixed(2)}%`, 330, y);
+  
+  y += 20;
+  
+  // Add EXIT PRICE P&L stats
+  if (!patternName.includes('-unknown')) {
+    doc.fillColor('#f39c12')
+       .fontSize(12)
+       .font('Helvetica')
+       .text(`Avg Exit Price P&L: ${stats.avgExitPricePnL.toFixed(2)}%`, 200, y);
+  }
   
   y += 20;
   
