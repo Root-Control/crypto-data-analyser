@@ -6,32 +6,34 @@
 /**
  * Calcula el precio de liquidación para una posición LARGA (Long)
  * 
- * Fórmula: Liquidation Price = Entry Price * (1 - Initial Margin Rate + Maintenance Margin Rate)
+ * Fórmula: Liquidation Price = Entry Price * (1 - Initial Margin Rate + Maintenance Margin Rate + Fees)
  * 
  * @param {number} entryPrice - Precio de entrada de la posición
  * @param {number} leverage - Apalancamiento utilizado (ej: 10 para 10x)
  * @param {number} maintenanceMarginRate - Tasa de margen de mantenimiento (ej: 0.004 para 0.4%)
+ * @param {number} fees - Tasa de fees totales (entrada + salida) (ej: 0.001 para 0.1%)
  * @returns {number} Precio de liquidación para posición larga
  */
-function calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate = 0.004) {
+function calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate = 0.005, fees = 0.0006) {
   const initialMarginRate = 1 / leverage;
-  const liquidationPrice = entryPrice * (1 - initialMarginRate + maintenanceMarginRate);
+  const liquidationPrice = entryPrice * (1 - initialMarginRate + maintenanceMarginRate + fees);
   return liquidationPrice;
 }
 
 /**
  * Calcula el precio de liquidación para una posición CORTA (Short)
  * 
- * Fórmula: Liquidation Price = Entry Price * (1 + Initial Margin Rate - Maintenance Margin Rate)
+ * Fórmula: Liquidation Price = Entry Price * (1 + Initial Margin Rate - Maintenance Margin Rate + Fees)
  * 
  * @param {number} entryPrice - Precio de entrada de la posición
  * @param {number} leverage - Apalancamiento utilizado (ej: 10 para 10x)
  * @param {number} maintenanceMarginRate - Tasa de margen de mantenimiento (ej: 0.004 para 0.4%)
+ * @param {number} fees - Tasa de fees totales (entrada + salida) (ej: 0.001 para 0.1%)
  * @returns {number} Precio de liquidación para posición corta
  */
-function calculateShortLiquidationPrice(entryPrice, leverage, maintenanceMarginRate = 0.004) {
+function calculateShortLiquidationPrice(entryPrice, leverage, maintenanceMarginRate = 0.005, fees = 0.0006) {
   const initialMarginRate = 1 / leverage;
-  const liquidationPrice = entryPrice * (1 + initialMarginRate - maintenanceMarginRate);
+  const liquidationPrice = entryPrice * (1 + initialMarginRate - maintenanceMarginRate + fees);
   return liquidationPrice;
 }
 
@@ -42,13 +44,14 @@ function calculateShortLiquidationPrice(entryPrice, leverage, maintenanceMarginR
  * @param {number} entryPrice - Precio de entrada de la posición
  * @param {number} leverage - Apalancamiento utilizado
  * @param {number} maintenanceMarginRate - Tasa de margen de mantenimiento
+ * @param {number} fees - Tasa de fees totales (entrada + salida)
  * @returns {number} Precio de liquidación
  */
-function calculateLiquidationPrice(side, entryPrice, leverage, maintenanceMarginRate = 0.004) {
+function calculateLiquidationPrice(side, entryPrice, leverage, maintenanceMarginRate = 0.005, fees = 0.0006) {
   if (side.toUpperCase() === 'LONG') {
-    return calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate);
+    return calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate, fees);
   } else if (side.toUpperCase() === 'SHORT') {
-    return calculateShortLiquidationPrice(entryPrice, leverage, maintenanceMarginRate);
+    return calculateShortLiquidationPrice(entryPrice, leverage, maintenanceMarginRate, fees);
   } else {
     throw new Error('Side must be "LONG" or "SHORT"');
   }
@@ -111,11 +114,12 @@ function calculateMarginRatio(currentPrice, entryPrice, side, leverage, maintena
  * @param {number} leverage - Apalancamiento utilizado
  * @param {number} maintenanceMarginRate - Tasa de margen de mantenimiento
  * @param {number} warningThreshold - Umbral de advertencia (ej: 1.5 = 150%)
+ * @param {number} fees - Tasa de fees totales (entrada + salida)
  * @returns {object} Estado de la posición
  */
-function checkLiquidationRisk(currentPrice, entryPrice, side, leverage, maintenanceMarginRate = 0.004, warningThreshold = 1.5) {
+function checkLiquidationRisk(currentPrice, entryPrice, side, leverage, maintenanceMarginRate = 0.005, warningThreshold = 1.5, fees = 0.0006) {
   const marginRatio = calculateMarginRatio(currentPrice, entryPrice, side, leverage, maintenanceMarginRate);
-  const liquidationPrice = calculateLiquidationPrice(side, entryPrice, leverage, maintenanceMarginRate);
+  const liquidationPrice = calculateLiquidationPrice(side, entryPrice, leverage, maintenanceMarginRate, fees);
   
   let status = 'SAFE';
   if (marginRatio <= 1.0) {

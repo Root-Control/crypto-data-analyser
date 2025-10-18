@@ -12,23 +12,26 @@ const {
   checkLiquidationRisk
 } = require('./liquidation');
 
-// Ejemplo 1: Posición LARGA con apalancamiento 10x
+// Ejemplo 1: Posición LARGA con apalancamiento 10x (incluyendo fees)
 console.log('=== EJEMPLO 1: POSICIÓN LARGA ===');
 const entryPrice = 4000; // ETH a $4000
 const leverage = 10; // 10x apalancamiento
-const maintenanceMarginRate = 0.004; // 0.4% margen de mantenimiento
+const maintenanceMarginRate = 0.005; // 0.5% margen de mantenimiento (Binance Futures)
+const fees = 0.0006; // 0.06% fees totales (0.02% maker + 0.04% taker)
 
-const longLiquidationPrice = calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate);
+const longLiquidationPrice = calculateLongLiquidationPrice(entryPrice, leverage, maintenanceMarginRate, fees);
 console.log(`Precio de entrada: $${entryPrice}`);
 console.log(`Apalancamiento: ${leverage}x`);
+console.log(`Fees totales: ${(fees * 100).toFixed(2)}%`);
 console.log(`Precio de liquidación (LONG): $${longLiquidationPrice.toFixed(2)}`);
 console.log(`Distancia hasta liquidación: ${(((entryPrice - longLiquidationPrice) / entryPrice) * 100).toFixed(2)}%`);
 
-// Ejemplo 2: Posición CORTA con apalancamiento 5x
+// Ejemplo 2: Posición CORTA con apalancamiento 5x (incluyendo fees)
 console.log('\n=== EJEMPLO 2: POSICIÓN CORTA ===');
-const shortLiquidationPrice = calculateShortLiquidationPrice(entryPrice, 5, maintenanceMarginRate);
+const shortLiquidationPrice = calculateShortLiquidationPrice(entryPrice, 5, maintenanceMarginRate, fees);
 console.log(`Precio de entrada: $${entryPrice}`);
 console.log(`Apalancamiento: 5x`);
+console.log(`Fees totales: ${(fees * 100).toFixed(2)}%`);
 console.log(`Precio de liquidación (SHORT): $${shortLiquidationPrice.toFixed(2)}`);
 console.log(`Distancia hasta liquidación: ${(((shortLiquidationPrice - entryPrice) / entryPrice) * 100).toFixed(2)}%`);
 
@@ -42,12 +45,13 @@ console.log(`Valor nocional: $${notionalValue}`);
 console.log(`Margen inicial requerido: $${initialMargin.toFixed(2)}`);
 console.log(`Margen de mantenimiento: $${maintenanceMargin.toFixed(2)}`);
 
-// Ejemplo 4: Verificación de riesgo de liquidación
+// Ejemplo 4: Verificación de riesgo de liquidación (incluyendo fees)
 console.log('\n=== EJEMPLO 4: VERIFICACIÓN DE RIESGO ===');
 const currentPrice = 3950; // Precio actual
-const riskCheck = checkLiquidationRisk(currentPrice, entryPrice, 'LONG', leverage, maintenanceMarginRate);
+const riskCheck = checkLiquidationRisk(currentPrice, entryPrice, 'LONG', leverage, maintenanceMarginRate, 1.5, fees);
 
 console.log(`Precio actual: $${currentPrice}`);
+console.log(`Fees totales: ${(fees * 100).toFixed(2)}%`);
 console.log(`Estado: ${riskCheck.status}`);
 console.log(`Ratio de margen: ${(riskCheck.marginRatio * 100).toFixed(2)}%`);
 console.log(`¿En riesgo?: ${riskCheck.isAtRisk ? 'SÍ' : 'NO'}`);
@@ -60,6 +64,6 @@ const prices = [4100, 4050, 4000, 3950, 3900, 3850, 3800];
 console.log('Precio | Ratio Margen | Estado');
 console.log('-------|--------------|--------');
 prices.forEach(price => {
-  const risk = checkLiquidationRisk(price, entryPrice, 'LONG', leverage, maintenanceMarginRate);
+  const risk = checkLiquidationRisk(price, entryPrice, 'LONG', leverage, maintenanceMarginRate, 1.5, fees);
   console.log(`$${price} | ${(risk.marginRatio * 100).toFixed(1)}% | ${risk.status}`);
 });

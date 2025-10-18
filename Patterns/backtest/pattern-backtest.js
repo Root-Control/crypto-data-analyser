@@ -700,7 +700,7 @@ async function scanTripleCandlePatterns(candles, detectors, startIndex = 0) {
       try {
         const result = detector.detect(candles, i);
         if (result.match) {
-          patternDetections.push({
+          const detection = {
             name: detector.name,
             type: detector.type,
             index: startIndex + i,
@@ -710,20 +710,37 @@ async function scanTripleCandlePatterns(candles, detectors, startIndex = 0) {
             typicalPrediction: detector.spec.typicalPrediction,
             commonContext: detector.spec.commonContext,
             candle: candles[i] // Add candle data
-          });
+          };
+          
+          // Special logic for Three White Soldiers - add next 5 candles data
+          if (detector.name === 'three-white-soldiers' && i + 5 < candles.length) {
+            detection.nextCandles = [
+              candles[i + 1],
+              candles[i + 2], 
+              candles[i + 3],
+              candles[i + 4],
+              candles[i + 5]
+            ];
+          }
+          
+          patternDetections.push(detection);
         }
       } catch (error) {
         // Skip problematic patterns
       }
     }
     
-    // Apply temporal duplicate filtering for Three Black Crows
-    if (detector.name === 'three-black-crows' && patternDetections.length > 0) {
-      const { filterTemporalDuplicates } = require('../triple-candle/three-black-crows');
-      const filteredDetections = filterTemporalDuplicates(patternDetections);
-      detections.push(...filteredDetections);
-    } else {
-      detections.push(...patternDetections);
+    // Apply temporal duplicate filtering for all triple-candle patterns
+    if (patternDetections.length > 0) {
+      try {
+        const patternFile = detector.name.replace(/-/g, '-');
+        const { filterTemporalDuplicates } = require(`../triple-candle/${patternFile}`);
+        const filteredDetections = filterTemporalDuplicates(patternDetections);
+        detections.push(...filteredDetections);
+      } catch (error) {
+        // If no filtering function exists, use original detections
+        detections.push(...patternDetections);
+      }
     }
   }
   
@@ -985,15 +1002,33 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
   doc.rect(0, 0, doc.page.width, 80)
      .fill('#2c3e50');
   
-  doc.fillColor('#ffffff')
-     .fontSize(24)
-     .font('Helvetica-Bold')
-     .text(patternName.replace(/-/g, ' ').toUpperCase(), 50, 30);
-  
-  doc.fillColor('#ecf0f1')
-     .fontSize(12)
-     .font('Helvetica')
-     .text(`Pattern Type: ${category}`, 50, 55);
+  // Special title for Three White Soldiers
+  if (patternName === 'three-white-soldiers') {
+    doc.fillColor('#ffffff')
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text('THREE WHITE SOLDIERS', 50, 20);
+    
+    doc.fillColor('#f39c12')
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('Tests 10X/50X Leverage • Capital $400 • Notional $4,000/$2,000', 50, 45);
+    
+    doc.fillColor('#ecf0f1')
+       .fontSize(12)
+       .font('Helvetica')
+       .text(`Pattern Type: ${category}`, 50, 65);
+  } else {
+    doc.fillColor('#ffffff')
+       .fontSize(24)
+       .font('Helvetica-Bold')
+       .text(patternName.replace(/-/g, ' ').toUpperCase(), 50, 30);
+    
+    doc.fillColor('#ecf0f1')
+       .fontSize(12)
+       .font('Helvetica')
+       .text(`Pattern Type: ${category}`, 50, 55);
+  }
   
   // Pattern info box
   let y = 100;
@@ -1033,11 +1068,12 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
   for (let i = 0; i < sortedDetections.length; i++) {
     const detection = sortedDetections[i];
     
-    // Detection box - taller to accommodate better layout
-    doc.rect(50, y, doc.page.width - 100, 115)
+    // Detection box - taller to accommodate better layout including next candles analysis
+    const boxHeight = patternName === 'three-white-soldiers' && detection.nextCandles ? 180 : 115;
+    doc.rect(50, y, doc.page.width - 100, boxHeight)
        .fill('#f8f9fa');
     
-    doc.rect(50, y, doc.page.width - 100, 115)
+    doc.rect(50, y, doc.page.width - 100, boxHeight)
        .stroke('#dee2e6');
     
     // Detection number
@@ -1072,24 +1108,209 @@ async function generateIndividualPatternPDF(category, patternName, detections) {
        .font('Helvetica')
        .text(`Confidence: ${(detection.confidence * 100).toFixed(1)}%`, 440, y + 40);
     
-    // Prediction and context on separate lines
-    doc.fillColor('#28a745')
-       .fontSize(10)
-       .font('Helvetica-Bold')
-       .text(`Prediction: ${detection.typicalPrediction}`, 60, y + 60);
+    // Removed prediction, context, and direction text
     
-    doc.fillColor('#6c757d')
-       .fontSize(9)
-       .font('Helvetica')
-       .text(`Context: ${detection.commonContext}`, 60, y + 75);
-    
-    // Additional info line
-    doc.fillColor('#495057')
-       .fontSize(9)
-       .font('Helvetica')
-       .text(`Direction: ${detection.candle.close > detection.candle.open ? 'BULLISH' : 'BEARISH'}`, 60, y + 90);
-    
-    y += 130;
+    // Special logic for Three White Soldiers - Next 5 candles analysis
+    if (patternName === 'three-white-soldiers' && detection.nextCandles) {
+      const nextCandles = detection.nextCandles;
+      const signalClose = detection.candle.close;
+      
+      // Find the highest high and lowest low across all 5 next candles
+      let maxHigh = 0;
+      let minLow = Infinity;
+      let maxHighCandleIndex = -1;
+      let minLowCandleIndex = -1;
+      
+      for (let j = 0; j < nextCandles.length; j++) {
+        const candle = nextCandles[j];
+        if (candle.high > maxHigh) {
+          maxHigh = candle.high;
+          maxHighCandleIndex = j + 1; // +1 because we want candle number (1st, 2nd, 3rd, 4th, 5th)
+        }
+        if (candle.low < minLow) {
+          minLow = candle.low;
+          minLowCandleIndex = j + 1; // +1 because we want candle number (1st, 2nd, 3rd, 4th, 5th)
+        }
+      }
+      
+      // Calculate percentage changes
+      const maxRisePercent = ((maxHigh - signalClose) / signalClose) * 100;
+      const maxFallPercent = ((minLow - signalClose) / signalClose) * 100;
+      
+      // TP/SL Analysis
+      const tp10x = 1.5; // 1.5% TP for 10X
+      const tp50x = 1.0; // 1.0% TP for 50X
+      const sl10x = 0.8; // 0.8% SL for 10X
+      const sl50x = 0.5; // 0.5% SL for 50X
+      
+      const tpReached10x = maxRisePercent >= tp10x;
+      const tpReached50x = maxRisePercent >= tp50x;
+      const slReached10x = maxFallPercent <= -sl10x;
+      const slReached50x = maxFallPercent <= -sl50x;
+      
+      // Removed NEXT 5 CANDLES ANALYSIS text and individual Max Rise/Max Fall
+      
+      // Calculate perfect spacing for 3 blocks
+      const containerWidth = doc.page.width - 120; // Total available width (60px margins on each side)
+      const blockSpacing = 15; // Space between blocks
+      const blockWidth = (containerWidth - (blockSpacing * 2)) / 3; // Perfect 1/3 division
+      const blockHeight = 80;
+      const blockY = y + 60;
+      
+      // Block 1: TP/SL Analysis
+      const block1X = 60;
+      doc.rect(block1X, blockY, blockWidth, blockHeight)
+         .fill('#f8f9fa')
+         .stroke('#2c3e50')
+         .lineWidth(1);
+      
+      doc.fillColor('#2c3e50')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text(`TP/SL ANALYSIS`, block1X + 10, blockY + 10);
+      
+      doc.fillColor(tpReached10x ? '#27ae60' : '#e74c3c')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`10X TP (${tp10x}%): ${tpReached10x ? 'YES' : 'NO'}`, block1X + 10, blockY + 25);
+      
+      doc.fillColor(slReached10x ? '#e74c3c' : '#27ae60')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`10X SL (${sl10x}%): ${slReached10x ? 'YES' : 'NO'}`, block1X + 10, blockY + 40);
+      
+      doc.fillColor(tpReached50x ? '#27ae60' : '#e74c3c')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`50X TP (${tp50x}%): ${tpReached50x ? 'YES' : 'NO'}`, block1X + 10, blockY + 55);
+      
+      doc.fillColor(slReached50x ? '#e74c3c' : '#27ae60')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`50X SL (${sl50x}%): ${slReached50x ? 'YES' : 'NO'}`, block1X + 10, blockY + 70);
+      
+      // Leverage Analysis
+      const capital = 400;
+      const entryPrice = signalClose;
+      
+      // Calculate liquidation prices for each leverage (including fees)
+      const leverage10x = 10;
+      const leverage50x = 50;
+      const leverage100x = 100;
+      
+      // Binance Futures rates: 0.5% maintenance margin + 0.06% fees (0.02% maker + 0.04% taker)
+      const maintenanceMarginRate = 0.005; // 0.5% maintenance margin
+      const fees = 0.0006; // 0.06% total fees (0.02% maker + 0.04% taker)
+      
+      // For long positions, liquidation price = entryPrice * (1 - 1/leverage + maintenanceMarginRate + fees)
+      const liquidation10x = entryPrice * (1 - 1/leverage10x + maintenanceMarginRate + fees);
+      const liquidation50x = entryPrice * (1 - 1/leverage50x + maintenanceMarginRate + fees);
+      const liquidation100x = entryPrice * (1 - 1/leverage100x + maintenanceMarginRate + fees);
+      
+      // Check if any candle reached liquidation prices
+      let liquidated10x = false;
+      let liquidated50x = false;
+      let liquidated100x = false;
+      let liquidationCandle10x = 0;
+      let liquidationCandle50x = 0;
+      let liquidationCandle100x = 0;
+      
+      for (let j = 0; j < nextCandles.length; j++) {
+        const candle = nextCandles[j];
+        if (!liquidated10x && candle.low <= liquidation10x) {
+          liquidated10x = true;
+          liquidationCandle10x = j + 1;
+        }
+        if (!liquidated50x && candle.low <= liquidation50x) {
+          liquidated50x = true;
+          liquidationCandle50x = j + 1;
+        }
+        if (!liquidated100x && candle.low <= liquidation100x) {
+          liquidated100x = true;
+          liquidationCandle100x = j + 1;
+        }
+      }
+      
+      // Calculate liquidation percentages
+      const liquidationPercent10x = ((liquidation10x - entryPrice) / entryPrice) * 100;
+      const liquidationPercent50x = ((liquidation50x - entryPrice) / entryPrice) * 100;
+      const liquidationPercent100x = ((liquidation100x - entryPrice) / entryPrice) * 100;
+      
+      // Block 2: Leverage Analysis
+      const block2X = block1X + blockWidth + blockSpacing;
+      
+      doc.rect(block2X, blockY, blockWidth, blockHeight)
+         .fill('#f8f9fa')
+         .stroke('#e74c3c')
+         .lineWidth(1);
+      
+      doc.fillColor('#e74c3c')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text(`LEVERAGE ANALYSIS`, block2X + 10, blockY + 10);
+      
+      doc.fillColor('#495057')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`Capital: $${capital}`, block2X + 10, blockY + 25);
+      
+      // 10X Leverage
+      doc.fillColor('#495057')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`10X: $${liquidation10x.toFixed(0)} (${liquidationPercent10x.toFixed(1)}%)`, block2X + 10, blockY + 40);
+      doc.fillColor(liquidated10x ? '#e74c3c' : '#27ae60')
+         .fontSize(8)
+         .font('Helvetica-Bold')
+         .text(liquidated10x ? 'LIQUIDATED' : 'SAFE', block2X + 10, blockY + 55);
+      
+      // 50X Leverage
+      doc.fillColor('#495057')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`50X: $${liquidation50x.toFixed(0)} (${liquidationPercent50x.toFixed(1)}%)`, block2X + 10, blockY + 70);
+      doc.fillColor(liquidated50x ? '#e74c3c' : '#27ae60')
+         .fontSize(8)
+         .font('Helvetica-Bold')
+         .text(liquidated50x ? 'LIQUIDATED' : 'SAFE', block2X + 10, blockY + 85);
+      
+      // Block 3: Performance Summary
+      const block3X = block2X + blockWidth + blockSpacing;
+      
+      doc.rect(block3X, blockY, blockWidth, blockHeight)
+         .fill('#f8f9fa')
+         .stroke('#8e44ad')
+         .lineWidth(1);
+      
+      doc.fillColor('#8e44ad')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text(`PERFORMANCE`, block3X + 10, blockY + 10);
+      
+      doc.fillColor('#2c3e50')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`Max Rise: +${maxRisePercent.toFixed(2)}%`, block3X + 10, blockY + 25);
+      
+      doc.fillColor('#2c3e50')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`Max Fall: ${maxFallPercent.toFixed(2)}%`, block3X + 10, blockY + 40);
+      
+      doc.fillColor('#2c3e50')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`Peak Candle: ${maxHighCandleIndex}`, block3X + 10, blockY + 55);
+      
+      doc.fillColor('#2c3e50')
+         .fontSize(8)
+         .font('Helvetica')
+         .text(`Low Candle: ${minLowCandleIndex}`, block3X + 10, blockY + 70);
+      
+      y += 160; // Extra space for 3 blocks (moved up)
+    } else {
+      y += 130;
+    }
     
     // Pagination
     if (y > 650) {
