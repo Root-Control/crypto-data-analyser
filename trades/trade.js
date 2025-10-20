@@ -60,6 +60,16 @@ class TradeManager {
       bigDataLevelsWindow: 3000,
       bigDataSignalsWindow: 1000,
       
+      // G) MODO MULTI-BLOQUES (con Overlap)
+      multiBlock: {
+        enabled: false, // DESACTIVADO - probando modo 1k
+        blockSize: 1000,
+        overlap: 200,
+        maxBlocks: 'auto', // o límite seguro
+        emitPerBlock: true,
+        aggregateReport: true
+      },
+      
       // G) PATCH v6 - VOLUMEN FINAL
       volumeRegimes: {
         low: { threshold: 30, volumeRatioMin: 0.98 },  // 1.00 → 0.98
@@ -258,6 +268,25 @@ class TradeManager {
     
     this.lastSignalCandle = -1;
     this.lastLevelCandle = -1;
+    
+    // Multi-block mode state
+    this.multiBlockState = {
+      enabled: false,
+      globalSignals: new Map(), // Para de-duplicación
+      globalStats: {
+        blocksProcessed: 0,
+        uniqueSignalsTotal: 0,
+        postClusterAvg: 0,
+        dirAvgEmit_global: 0,
+        feesGuard_passRate_global: 0,
+        dedup: {
+          globalDiscarded: 0,
+          reasons: {}
+        }
+      },
+      blockStats: [],
+      runId: null
+    };
   }
 
   /**
@@ -307,11 +336,11 @@ class TradeManager {
   /**
    * Obtiene velas de ETH/USDT desde Redis o API de Binance
    */
-  async getCandles(symbol = 'ETHUSDT', interval = '1m', limit = 1000) {
+  async getCandles(symbol = 'ETHUSDT', interval = '1m', limit = 1000, forceRefresh = false, startTime = null, endTime = null) {
     if (!this.isConnected) {
       throw new Error('No está conectado a Redis');
     }
-    return await this.dataManager.getCandles(symbol, interval, limit);
+    return await this.dataManager.getCandles(symbol, interval, limit, false, forceRefresh, startTime, endTime);
   }
 
   /**
@@ -487,14 +516,410 @@ class TradeManager {
   }
 
   /**
+   * Modo Multi-Bloques con Overlap
+   */
+  async analyzeMultiBlockMode() {
+    try {
+      console.log('🔄 Iniciando análisis Multi-Bloques...');
+      
+      // Generar ID único para esta ejecución
+      this.multiBlockState.runId = new Date().toISOString().replace(/[:.]/g, '-');
+      
+      // Obtener todas las velas disponibles
+      const allCandles = await this.getCandlesInBatches('ETHUSDT', '15m', 100000);
+      
+      if (allCandles.length === 0) {
+        console.log('❌ No se pudieron obtener velas');
+        return;
+      }
+      
+      console.log(`📊 Procesando ${allCandles.length} velas en modo multi-bloques`);
+      
+      // Calcular bloques con overlap
+      const blocks = this.calculateBlocks(allCandles.length);
+      console.log(`📦 Se generaron ${blocks.length} bloques con overlap de ${this.config.multiBlock.overlap} velas`);
+      
+      // Procesar cada bloque
+      for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+        const block = blocks[blockIndex];
+        console.log(`\n🔄 Procesando bloque ${blockIndex + 1}/${blocks.length} (velas ${block.startIdx}-${block.endIdx})`);
+        
+        await this.processBlock(allCandles, block, blockIndex);
+      }
+      
+      // Generar reportes globales
+      await this.generateMultiBlockReports();
+      
+      console.log('\n✅ Análisis Multi-Bloques completado');
+      
+    } catch (error) {
+      console.error('❌ Error en modo multi-bloques:', error);
+    }
+  }
+
+  /**
+   * Calcular bloques con overlap
+   */
+  calculateBlocks(totalCandles) {
+    const { blockSize, overlap, maxBlocks } = this.config.multiBlock;
+    const step = blockSize - overlap;
+    const blocks = [];
+    
+    let startIdx = 0;
+    let blockIndex = 0;
+    
+    while (startIdx + blockSize <= totalCandles && (maxBlocks === 'auto' || blockIndex < maxBlocks)) {
+      const endIdx = Math.min(startIdx + blockSize, totalCandles);
+      
+      blocks.push({
+        index: blockIndex,
+        startIdx,
+        endIdx,
+        warmupSize: overlap,
+        actualSize: endIdx - startIdx
+      });
+      
+      startIdx += step;
+      blockIndex++;
+    }
+    
+    return blocks;
+  }
+
+  /**
+   * Procesar un bloque individual
+   */
+  async processBlock(allCandles, block, blockIndex) {
+    try {
+      // Extraer velas del bloque
+      const blockCandles = allCandles.slice(block.startIdx, block.endIdx);
+      
+      // Resetear estado para el bloque
+      this.resetBlockState();
+      
+      // Procesar el bloque (usar la lógica existente)
+      await this.processBlockCandles(blockCandles, block, blockIndex);
+      
+      // Recopilar estadísticas del bloque
+      this.collectBlockStats(block, blockIndex);
+      
+      // Log del bloque
+      this.logBlockSummary(block, blockIndex);
+      
+    } catch (error) {
+      console.error(`❌ Error procesando bloque ${blockIndex}:`, error);
+    }
+  }
+
+  /**
+   * Resetear estado para un nuevo bloque
+   */
+  resetBlockState() {
+    // Resetear stats pero mantener configuración
+    this.stats = {
+      candidateLevels: 0,
+      finalLevels: 0,
+      candidateBreakouts: 0,
+      confirmedBreakouts: 0,
+      signalsTotal: 0,
+      actualSignalsEmitted: 0,
+      // ... otros campos necesarios
+    };
+    
+    // Resetear señales del bloque
+      this.trades = [];
+    this.signals = [];
+  }
+
+  /**
+   * Procesar velas de un bloque (reutilizar lógica existente)
+   */
+  async processBlockCandles(candles, block, blockIndex) {
+    // A) DETECCIÓN DE NIVELES
+    console.log('🎯 Detectando niveles de soporte y resistencia...');
+    await this.detectLevels(candles);
+    
+    // B) DETECCIÓN DE ROMPIMIENTOS Y C) EMISIÓN DE SEÑALES
+    console.log('⚡ Detectando rompimientos y generando señales...');
+    await this.computeBreakoutsAndSignals(candles, 0);
+    
+    // D) APLICAR FILTROS DE SEGURIDAD
+    console.log('🛡️ Aplicando filtros de seguridad...');
+    await this.applySafetyFilters(candles);
+    
+    // E) GENERAR SEÑALES
+    console.log('📤 Generando señales...');
+    await this.generateSignals(candles);
+  }
+
+  /**
+   * Recopilar estadísticas del bloque
+   */
+  collectBlockStats(block, blockIndex) {
+    const blockStat = {
+      blockIndex,
+      rangeStartIdx: block.startIdx,
+      rangeEndIdx: block.endIdx,
+      warmupSize: block.warmupSize,
+      postClusterCount: this.stats.postClusterCount || 0,
+      picked: this.stats.picked || 0,
+      signalsTotal: this.stats.signalsTotal || 0,
+      directionScoreAvg_emitted: this.stats.directionScoreAvg_emitted || 0,
+      reasonsTrimmed: this.stats.reasonsTrimmed || {},
+      hygieneRejected: this.stats.hygieneRejected || {},
+      feesGuardPassRate: this.stats.feesGuardPassRate || 0,
+      dedup: {
+        blockDiscarded: 0,
+        reasons: {}
+      }
+    };
+    
+    // Procesar señales del bloque para de-duplicación
+    this.processBlockSignals(blockStat);
+    
+    this.multiBlockState.blockStats.push(blockStat);
+  }
+
+  /**
+   * Procesar señales del bloque para de-duplicación
+   */
+  processBlockSignals(blockStat) {
+    for (const signal of this.trades) {
+      const signalKey = this.generateSignalKey(signal);
+      
+      if (this.multiBlockState.globalSignals.has(signalKey)) {
+        // Señal duplicada
+        blockStat.dedup.blockDiscarded++;
+        this.multiBlockState.globalStats.dedup.globalDiscarded++;
+        
+        if (!this.multiBlockState.globalStats.dedup.reasons[signalKey]) {
+          this.multiBlockState.globalStats.dedup.reasons[signalKey] = 0;
+        }
+        this.multiBlockState.globalStats.dedup.reasons[signalKey]++;
+      } else {
+        // Señal única
+        this.multiBlockState.globalSignals.set(signalKey, signal);
+        this.multiBlockState.globalStats.uniqueSignalsTotal++;
+      }
+    }
+  }
+
+  /**
+   * Generar clave única para de-duplicación
+   */
+  generateSignalKey(signal) {
+    const ts = new Date(signal.timestamp).toISOString();
+    const side = signal.side;
+    const levelId = signal.levelId || 'unknown';
+    const entryPrice = Math.round(signal.entryPrice * 100) / 100; // 2 decimales
+    const rrBucket = Math.round(signal.riskRewardRatio / 0.05) * 0.05; // Bucket de 0.05
+    
+    return `${ts}|${side}|${levelId}|${entryPrice}|${rrBucket}`;
+  }
+
+  /**
+   * Log resumen del bloque
+   */
+  logBlockSummary(block, blockIndex) {
+    const blockStat = this.multiBlockState.blockStats[blockIndex];
+    
+    console.log(`BLOCK_SUMMARY v6.7 | ix=${blockIndex} | range=${block.startIdx}-${block.endIdx} | warmup=${block.warmupSize} | postCluster=${blockStat.postClusterCount} | picked=${blockStat.picked} | emitted=${blockStat.signalsTotal} | dirAvgEmit=${blockStat.directionScoreAvg_emitted.toFixed(3)} | feesPass=${blockStat.feesGuardPassRate.toFixed(1)}% | dedup=${blockStat.dedup.blockDiscarded}`);
+  }
+
+  /**
+   * Generar reportes globales del modo multi-bloques
+   */
+  async generateMultiBlockReports() {
+    // Calcular estadísticas globales
+    this.calculateGlobalStats();
+    
+    // Log resumen global
+    this.logGlobalSummary();
+    
+    // Generar PDF global
+    await this.generateMultiBlockPDF();
+    
+    // Generar snapshots por bloque (opcional)
+    if (this.config.multiBlock.emitPerBlock) {
+      await this.generateBlockSnapshots();
+    }
+  }
+
+  /**
+   * Calcular estadísticas globales
+   */
+  calculateGlobalStats() {
+    const { globalStats, blockStats } = this.multiBlockState;
+    
+    globalStats.blocksProcessed = blockStats.length;
+    
+    // Calcular promedios
+    if (blockStats.length > 0) {
+      globalStats.postClusterAvg = blockStats.reduce((sum, b) => sum + b.postClusterCount, 0) / blockStats.length;
+      globalStats.dirAvgEmit_global = blockStats.reduce((sum, b) => sum + b.directionScoreAvg_emitted, 0) / blockStats.length;
+      globalStats.feesGuard_passRate_global = blockStats.reduce((sum, b) => sum + b.feesGuardPassRate, 0) / blockStats.length;
+    }
+  }
+
+  /**
+   * Log resumen global
+   */
+  logGlobalSummary() {
+    const { globalStats } = this.multiBlockState;
+    
+    console.log(`\nEMIT_SUMMARY_MULTIBLOCK v6.7 | blocks=${globalStats.blocksProcessed} | uniqueSignals=${globalStats.uniqueSignalsTotal} | postClusterAvg=${globalStats.postClusterAvg.toFixed(1)} | dirAvgEmit_global=${globalStats.dirAvgEmit_global.toFixed(3)} | feesPass_global=${globalStats.feesGuard_passRate_global.toFixed(1)}% | dedup.globalDiscarded=${globalStats.dedup.globalDiscarded}`);
+    
+    // Canary checks
+    this.performCanaryChecks();
+  }
+
+  /**
+   * Realizar canary checks
+   */
+  performCanaryChecks() {
+    const { globalStats, blockStats } = this.multiBlockState;
+    
+    // Check 1: postClusterCount bajo
+    const lowPostClusterBlocks = blockStats.filter(b => b.postClusterCount < 4).length;
+    const lowPostClusterRate = lowPostClusterBlocks / blockStats.length;
+    if (lowPostClusterRate >= 0.2) {
+      console.log(`CANARY_WARN: low postCluster (${(lowPostClusterRate * 100).toFixed(1)}% of blocks < 4)`);
+    }
+    
+    // Check 2: direction quality bajo
+    if (globalStats.dirAvgEmit_global < 0.55) {
+      console.log(`CANARY_WARN: low dir quality (${globalStats.dirAvgEmit_global.toFixed(3)} < 0.55)`);
+    }
+    
+    // Check 3: signal yield bajo
+    const expectedMinSignals = globalStats.blocksProcessed * 4;
+    const signalYield = globalStats.uniqueSignalsTotal / expectedMinSignals;
+    if (signalYield < 0.5) {
+      console.log(`CANARY_WARN: low signal yield (${signalYield.toFixed(2)} < 0.5)`);
+    }
+  }
+
+  /**
+   * Generar PDF global del modo multi-bloques
+   */
+  async generateMultiBlockPDF() {
+    try {
+      console.log('📄 Generando PDF global Multi-Bloques...');
+      
+      const PDFDocument = require('pdfkit');
+      const fs = require('fs');
+      const path = require('path');
+      
+      // Crear directorio para multi-bloques
+      const multiblockDir = path.join(__dirname, 'reports', 'multiblock', this.multiBlockState.runId);
+      if (!fs.existsSync(multiblockDir)) {
+        fs.mkdirSync(multiblockDir, { recursive: true });
+      }
+      
+      const doc = new PDFDocument();
+      const outputPath = path.join(multiblockDir, 'signals-multiblock.pdf');
+      doc.pipe(fs.createWriteStream(outputPath));
+      
+      // Cabecera global
+      doc.fontSize(20).text('SEÑALES DE TRADING (Multi-Bloques)', { align: 'center' });
+      doc.moveDown(1);
+      
+      // Información del análisis
+      doc.fontSize(12).text(`Análisis realizado: ${new Date().toLocaleString()}`, { align: 'center' });
+      doc.text(`Régimen: ${this.stats.regime || 'low'}`, { align: 'center' });
+      doc.text(`Bloques procesados: ${this.multiBlockState.globalStats.blocksProcessed}`, { align: 'center' });
+      doc.text(`Señales únicas: ${this.multiBlockState.globalStats.uniqueSignalsTotal}`, { align: 'center' });
+      doc.text(`Tamaño de bloque: ${this.config.multiBlock.blockSize} velas`, { align: 'center' });
+      doc.text(`Overlap: ${this.config.multiBlock.overlap} velas`, { align: 'center' });
+      doc.moveDown(2);
+      
+      // Tabla de señales únicas
+      doc.fontSize(16).text('SEÑALES ÚNICAS (Post-De-duplicación)', { underline: true });
+      doc.moveDown(1);
+      
+      let signalCount = 0;
+      for (const [signalKey, signal] of this.multiBlockState.globalSignals) {
+        signalCount++;
+        doc.fontSize(12).text(`SEÑAL #${signalCount}`, { underline: true });
+        doc.fontSize(10);
+        doc.text(`Fecha: ${new Date(signal.timestamp).toLocaleDateString()}`);
+        doc.text(`Hora: ${new Date(signal.timestamp).toLocaleTimeString()}`);
+        doc.text(`Tipo: ${signal.side === 'LONG' ? 'COMPRA' : 'VENTA'} (${signal.side})`);
+        doc.text(`Precio de entrada: $${signal.entryPrice}`);
+        doc.text(`Stop Loss: $${signal.stopLoss}`);
+        doc.text(`Take Profit 1: $${signal.takeProfit1}`);
+        doc.text(`Riesgo/Beneficio: ${signal.riskRewardRatio}:1`);
+        doc.moveDown(1);
+        
+        // Nueva página cada 3 señales
+        if (signalCount % 3 === 0) {
+          doc.addPage();
+        }
+      }
+      
+      // Tabla de métricas por bloque
+      doc.addPage();
+      doc.fontSize(16).text('MÉTRICAS POR BLOQUE', { underline: true });
+      doc.moveDown(1);
+      
+      doc.fontSize(10);
+      doc.text('Bloque | Rango | Señales | PostCluster | DirAvg | Dedup');
+      doc.text('-------|-------|---------|-------------|--------|------');
+      
+      for (const blockStat of this.multiBlockState.blockStats) {
+        const range = `${blockStat.rangeStartIdx}-${blockStat.rangeEndIdx}`;
+        doc.text(`${blockStat.blockIndex.toString().padStart(6)} | ${range.padEnd(5)} | ${blockStat.signalsTotal.toString().padStart(7)} | ${blockStat.postClusterCount.toString().padStart(11)} | ${blockStat.directionScoreAvg_emitted.toFixed(3).padStart(6)} | ${blockStat.dedup.blockDiscarded.toString().padStart(5)}`);
+      }
+      
+      // Estadísticas globales
+      doc.addPage();
+      doc.fontSize(16).text('ESTADÍSTICAS GLOBALES', { underline: true });
+      doc.moveDown(1);
+      
+      doc.fontSize(12);
+      doc.text(`Bloques procesados: ${this.multiBlockState.globalStats.blocksProcessed}`);
+      doc.text(`Señales únicas totales: ${this.multiBlockState.globalStats.uniqueSignalsTotal}`);
+      doc.text(`Promedio postCluster: ${this.multiBlockState.globalStats.postClusterAvg.toFixed(2)}`);
+      doc.text(`Promedio directionScore: ${this.multiBlockState.globalStats.dirAvgEmit_global.toFixed(3)}`);
+      doc.text(`Tasa de fees guard: ${this.multiBlockState.globalStats.feesGuard_passRate_global.toFixed(1)}%`);
+      doc.text(`Señales descartadas por duplicación: ${this.multiBlockState.globalStats.dedup.globalDiscarded}`);
+      
+      doc.end();
+      
+      console.log(`✅ PDF Multi-Bloques generado: ${outputPath}`);
+      
+            } catch (error) {
+      console.error('❌ Error generando PDF Multi-Bloques:', error);
+    }
+  }
+
+  /**
+   * Generar snapshots por bloque
+   */
+  async generateBlockSnapshots() {
+    console.log('📸 Generando snapshots por bloque...');
+    // TODO: Implementar snapshots por bloque
+  }
+
+  /**
    * PATCH v2 - Análisis principal con desbloqueo controlado de señales
    */
   async analyzeCandlesAndCreateTrades() {
     try {
       console.log('🔍 PATCH v2 - Iniciando análisis con desbloqueo controlado...');
       
-      // Obtener velas
-      const candles = await this.getCandles('ETHUSDT', '15m', 1000);
+      // Verificar modo multi-bloques
+      this.multiBlockState.enabled = this.config.multiBlock.enabled;
+      
+      if (this.multiBlockState.enabled) {
+        console.log('🔄 Modo Multi-Bloques activado');
+        return await this.analyzeMultiBlockMode();
+      }
+      
+      // Obtener velas desde el 20 de octubre hacia atrás
+      const endTime = new Date('2025-10-20T00:00:00.000Z').getTime();
+      const startTime = endTime - (1000 * 15 * 60 * 1000); // 1000 velas de 15 minutos hacia atrás
+      const candles = await this.getCandles('ETHUSDT', '15m', 1000, true, startTime, endTime);
       
       if (candles.length === 0) {
         console.log('❌ No se pudieron obtener velas');

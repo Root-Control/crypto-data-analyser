@@ -289,7 +289,7 @@ class DataManager {
    * @param {boolean} use100K - Flag para usar 100K velas (default: false)
    * @returns {Array} Array de velas
    */
-  async getCandles(symbol = 'ETHUSDT', interval = '1m', limit = 1000, use100K = false) {
+  async getCandles(symbol = 'ETHUSDT', interval = '1m', limit = 1000, use100K = false, forceRefresh = false, startTime = null, endTime = null) {
     // Si use100K es true, usar la key de 100K velas
     if (use100K) {
       console.log('🚀 Modo 100K activado - usando datos históricos permanentes');
@@ -299,18 +299,26 @@ class DataManager {
     const cacheKey = `${symbol}_${interval.toUpperCase()}_${limit}_CANDLES`;
     
     try {
-      // Primero verificar si hay datos en Redis
-      console.log(`🔍 Verificando datos en Redis para ${cacheKey}...`);
-      const cachedData = await this.get(cacheKey);
-      
-      if (cachedData && cachedData.length > 0) {
-        console.log(`✅ Datos encontrados en Redis: ${cachedData.length} velas`);
-        return cachedData;
+      // Si forceRefresh es true, saltar la verificación de Redis
+      if (!forceRefresh) {
+        // Primero verificar si hay datos en Redis
+        console.log(`🔍 Verificando datos en Redis para ${cacheKey}...`);
+        const cachedData = await this.get(cacheKey);
+        
+        if (cachedData && cachedData.length > 0) {
+          console.log(`✅ Datos encontrados en Redis: ${cachedData.length} velas`);
+          return cachedData;
+        }
+      } else {
+        console.log(`🔄 ForceRefresh activado - saltando caché de Redis para ${cacheKey}...`);
       }
       
       // Si no hay datos en Redis, obtener de la API de Binance
       console.log(`📡 Obteniendo datos de la API de Binance para ${symbol}...`);
-      const apiData = await this.fetchCandlesFromBinance(symbol, interval, limit);
+      if (startTime && endTime) {
+        console.log(`📅 Rango de fechas: ${new Date(startTime).toISOString()} - ${new Date(endTime).toISOString()}`);
+      }
+      const apiData = await this.fetchCandlesFromBinance(symbol, interval, limit, startTime, endTime);
       
       if (apiData && apiData.length > 0) {
         // Guardar en Redis para futuras consultas
@@ -342,7 +350,7 @@ class DataManager {
    * @param {number} limit - Número de velas
    * @returns {Array} Array de velas formateadas
    */
-  async fetchCandlesFromBinance(symbol, interval, limit) {
+  async fetchCandlesFromBinance(symbol, interval, limit, startTime = null, endTime = null) {
     try {
       const baseUrl = 'https://fapi.binance.com';
       const endpoint = '/fapi/v1/klines';
@@ -352,6 +360,14 @@ class DataManager {
         interval: interval,
         limit: limit
       };
+      
+      // Añadir parámetros de fecha si se proporcionan
+      if (startTime) {
+        params.startTime = startTime;
+      }
+      if (endTime) {
+        params.endTime = endTime;
+      }
       
       console.log(`🌐 Llamando a Binance API: ${baseUrl}${endpoint}`);
       console.log(`📊 Parámetros:`, params);
