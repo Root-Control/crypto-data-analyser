@@ -141,7 +141,7 @@ function polishAndValidateStats(stats, emitted) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { symbol: 'ETHUSDT', timeframe: '15m', quantity: 3000, previousCandles: 500, regime: 'low', fromISO: undefined };
+  const out = { symbol: 'ETHUSDT', timeframe: '15m', quantity: 30000, previousCandles: 500, regime: 'low', fromISO: '2025-10-20T17:00:00.000Z' };
   for (let i = 0; i < args.length; i += 1) {
     const a = args[i];
     const v = args[i + 1];
@@ -214,6 +214,221 @@ function computeNextMove(candles, s) {
   return s;
 }
 
+function analyzeRealBehavior(candles, signal) {
+  const signalIdx = candles.findIndex(c => c.openTimeISO === signal.dtISO);
+  if (signalIdx < 0) return null;
+  
+  const entry = signal.entry;
+  const sl = signal.sl;
+  const tp1 = signal.tp1;
+  const side = signal.side;
+  
+  // Analizar las siguientes 10 velas
+  const maxCandles = Math.min(10, candles.length - signalIdx - 1);
+  const analysis = {
+    reached: null, // 'TP', 'SL', o null
+    candleNumber: null, // En qué vela (1-10)
+    exitPrice: null,
+    exitReason: null,
+    candlesAnalyzed: maxCandles,
+    minPrice: null, // Precio mínimo alcanzado
+    maxPrice: null, // Precio máximo alcanzado
+    minCandle: null, // Vela donde se alcanzó el mínimo
+    maxCandle: null, // Vela donde se alcanzó el máximo
+    firstReached: null // 'TP' o 'SL' - cuál llegó primero
+  };
+  
+  // Inicializar min/max con el precio de entrada
+  let minPrice = entry;
+  let maxPrice = entry;
+  let minCandle = 0;
+  let maxCandle = 0;
+  let firstReached = null;
+  
+  for (let i = 1; i <= maxCandles; i++) {
+    const candle = candles[signalIdx + i];
+    if (!candle) break;
+    
+    const high = candle.high;
+    const low = candle.low;
+    const close = candle.close;
+    
+    // Actualizar min/max
+    if (low < minPrice) {
+      minPrice = low;
+      minCandle = i;
+    }
+    if (high > maxPrice) {
+      maxPrice = high;
+      maxCandle = i;
+    }
+    
+    let tpHit = false;
+    let slHit = false;
+    
+    if (side === 'LONG') {
+      // Para LONG: TP1 arriba, SL abajo
+      tpHit = high >= tp1;
+      slHit = low <= sl;
+    } else {
+      // Para SHORT: TP1 abajo, SL arriba
+      tpHit = low <= tp1;
+      slHit = high >= sl;
+    }
+    
+    // Determinar cuál llegó primero (solo en la primera vela donde alguno se alcanza)
+    if (!firstReached && (tpHit || slHit)) {
+      if (tpHit && slHit) {
+        // Ambos en la misma vela - usar regla de tie resolution
+        if (side === 'LONG') {
+          // LONG: asumir que TP llegó primero (High antes que Low)
+          firstReached = 'TP';
+        } else {
+          // SHORT: asumir que TP llegó primero (Low antes que High)
+          firstReached = 'TP';
+        }
+      } else if (tpHit) {
+        firstReached = 'TP';
+      } else if (slHit) {
+        firstReached = 'SL';
+      }
+    }
+    
+    if (tpHit && slHit) {
+      // Ambos tocados en la misma vela - usar regla de tie resolution
+      if (side === 'LONG') {
+        // LONG: asumir que TP llegó primero (High antes que Low)
+        analysis.reached = 'TP';
+        analysis.exitPrice = tp1;
+        analysis.exitReason = 'TP (tie resolved)';
+      } else {
+        // SHORT: asumir que TP llegó primero (Low antes que High)
+        analysis.reached = 'TP';
+        analysis.exitPrice = tp1;
+        analysis.exitReason = 'TP (tie resolved)';
+      }
+      analysis.candleNumber = i;
+      break;
+    } else if (tpHit) {
+      analysis.reached = 'TP';
+      analysis.exitPrice = tp1;
+      analysis.exitReason = 'TP';
+      analysis.candleNumber = i;
+      break;
+    } else if (slHit) {
+      analysis.reached = 'SL';
+      analysis.exitPrice = sl;
+      analysis.exitReason = 'SL';
+      analysis.candleNumber = i;
+      break;
+    }
+  }
+  
+  // Guardar min/max y cuál llegó primero
+  analysis.minPrice = minPrice;
+  analysis.maxPrice = maxPrice;
+  analysis.minCandle = minCandle;
+  analysis.maxCandle = maxCandle;
+  analysis.firstReached = firstReached;
+  
+  if (!analysis.reached) {
+    analysis.exitReason = 'No se llegó a ninguno';
+    analysis.exitPrice = candles[signalIdx + maxCandles]?.close || null;
+    
+    // Calcular porcentaje de pérdida/ganancia al cierre final
+    if (analysis.exitPrice) {
+      const pctChange = ((analysis.exitPrice - entry) / entry) * 100;
+      analysis.finalClosePct = pctChange;
+      analysis.finalCloseResult = pctChange > 0 ? 'Ganancia' : 'Pérdida';
+    }
+    
+    // Determinar cuál llegó primero (máximo o mínimo)
+    if (minCandle < maxCandle) {
+      analysis.firstReached = 'Mínimo';
+    } else if (maxCandle < minCandle) {
+      analysis.firstReached = 'Máximo';
+    } else {
+      analysis.firstReached = 'Simultáneo';
+    }
+  }
+  
+  return analysis;
+}
+
+function calculateRealPnL(signal) {
+  const behavior = signal.realBehavior;
+  if (!behavior) return null;
+  
+  const entry = signal.entry;
+  const side = signal.side;
+  const capital = 400; // USD
+  const leverage = 20;
+  const takerBps = 10; // 0.10%
+  const slippageBps = 2; // 0.02%
+  
+  let exitPrice = null;
+  let exitReason = null;
+  
+  if (behavior.reached === 'TP') {
+    exitPrice = behavior.exitPrice;
+    exitReason = 'TP';
+  } else if (behavior.reached === 'SL') {
+    exitPrice = behavior.exitPrice;
+    exitReason = 'SL';
+  } else {
+    // No se llegó a ninguno - usar cierre final
+    exitPrice = behavior.exitPrice;
+    exitReason = 'EXP';
+  }
+  
+  if (!exitPrice) return null;
+  
+  // Calcular notional (capital * leverage)
+  const notional = capital * leverage; // $400 * 20 = $8,000
+  
+  // Calcular PnL bruto
+  let grossPct = 0;
+  if (side === 'LONG') {
+    grossPct = ((exitPrice - entry) / entry) * 100;
+  } else {
+    grossPct = ((entry - exitPrice) / entry) * 100;
+  }
+  
+  // PnL bruto en USD (sobre notional)
+  const grossUsd = (grossPct / 100) * notional;
+  
+  // Calcular fees taker-taker (0.05% por tramo)
+  const entryFee = 0.0005 * notional; // 0.05% de entrada
+  const exitNotional = notional * (exitPrice / entry); // Notional ajustado por precio
+  const exitFee = 0.0005 * exitNotional; // 0.05% de salida
+  const totalFees = entryFee + exitFee;
+  
+  // PnL neto
+  const netUsd = grossUsd - totalFees;
+  const netPct = (netUsd / capital) * 100; // ROI sobre margen
+  
+  // ROI bruto sobre margen
+  const grossROI = (grossUsd / capital) * 100;
+  
+  return {
+    entry,
+    exitPrice,
+    exitReason,
+    side,
+    grossPct,
+    grossUsd,
+    grossROI,
+    netPct,
+    netUsd,
+    capital,
+    leverage,
+    notional,
+    entryFee,
+    exitFee,
+    totalFees
+  };
+}
+
 function enforceRRMinimum(signal) {
   const RR_MIN = 1.30;
   const slDist = Math.abs(signal.entry - signal.sl);
@@ -248,7 +463,9 @@ async function main() {
     .map(s => attachCandle(candles, s))
     .map(s => computeFeesAndRisk(s))
     .map(s => computeNextMove(candles, s))
-    .map(s => enforceRRMinimum(s)); // Apply RR_MIN=1.3 and sync back to signal
+    .map(s => enforceRRMinimum(s)) // Apply RR_MIN=1.3 and sync back to signal
+    .map(s => { s.realBehavior = analyzeRealBehavior(candles, s); return s; }) // Analyze real behavior
+    .map(s => { s.realPnL = calculateRealPnL(s); return s; }); // Calculate real PnL
 
   // Apply pacing rules to filter signals
   const pacingResult = applyPacingRules(rawSignals, candles, []);
@@ -587,7 +804,7 @@ async function main() {
     from: candles[0].openTime, 
     to: candles[candles.length - 1].openTime 
   } : undefined;
-  await generatePdf({ signals: signalsWithPacing, regime, symbol, dateRange, previousCandles, pacingStats, outPath: pdfOut });
+  await generatePdf({ signals: signalsWithPacing, regime, symbol, dateRange, previousCandles, pacingStats, candles, outPath: pdfOut });
 
   // EMIT_SUMMARY with real values
   console.log(`EMIT_SUMMARY v6.6.2 | emitted=${emitted} | picked=${picked} | postCluster=${postClusterCount} | clusterBypass=${clusterBypass} | dirAvgEmit=${dirScoreAvgEmitted?.toFixed(3)} | rrAvgEmit=${rrAvg?.toFixed(3)} | priceRadius=${priceRadiusFinal?.toFixed(3)} | pacing: minSpacing=${PACING_CONFIG.minSpacingBars}b, cooldownSide=${PACING_CONFIG.cooldownSideBars}b, max${PACING_CONFIG.maxSignals4h}/4h | removed: spacing=${pacingStats.removedByMinSpacing}, cooldown=${pacingStats.removedByCooldownSide}, rate4h=${pacingStats.removedByRateLimit4h}, reverseAfterSL=${pacingStats.blockedReverseAfterSL} | pdf=${pdfOut} | snapshot=${jsonOut}`);

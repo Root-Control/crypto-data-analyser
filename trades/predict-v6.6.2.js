@@ -49,6 +49,34 @@ async function predictV662({ symbol, quantity = 1000, fromISO, previousCandles =
   const candles = await getData(symbol, quantity, fromISO, previousCandles, timeframe);
   if (!candles.length) return [];
 
+  const allSignals = [];
+
+  // Si quantity > 1000, dividir en chunks de 1000 velas
+  if (quantity > 1000) {
+    const chunkSize = 1000;
+    const numChunks = Math.floor(quantity / chunkSize);
+    
+    console.log(`[predictV662] Dividiendo ${quantity} velas en ${numChunks} chunks de ${chunkSize} velas cada uno`);
+    
+    for (let chunk = 0; chunk < numChunks; chunk++) {
+      const startIdx = chunk * chunkSize;
+      const endIdx = Math.min(startIdx + chunkSize, candles.length);
+      const chunkCandles = candles.slice(startIdx, endIdx);
+      
+      console.log(`[predictV662] Procesando chunk ${chunk + 1}/${numChunks}: velas ${startIdx}-${endIdx-1}`);
+      
+      const chunkSignals = processChunk(symbol, chunkCandles, previousCandles, maxSignalsPer1000, chunk);
+      allSignals.push(...chunkSignals);
+    }
+    
+    return allSignals.sort((a, b) => new Date(a.dtISO) - new Date(b.dtISO));
+  } else {
+    // Procesamiento normal para quantity <= 1000
+    return processChunk(symbol, candles, previousCandles, maxSignalsPer1000, 0);
+  }
+}
+
+function processChunk(symbol, candles, previousCandles, maxSignalsPer1000, chunkId) {
   const signals = [];
 
   // Simple placeholder selection: look for momentum bursts with ATR-filtered space
@@ -94,9 +122,12 @@ async function predictV662({ symbol, quantity = 1000, fromISO, previousCandles =
     composite: 0.6 * s.eventScore + 0.3 * s.directionScore + 0.1 * (s.votes?.momentum ?? 0),
   }));
   withScore.sort((a, b) => b.composite - a.composite);
+  
   const limited = withScore.slice(0, Math.min(maxSignalsPer1000, withScore.length)).map(x => x.s);
-
-  return limited.sort((a, b) => new Date(a.dtISO) - new Date(b.dtISO));
+  
+  console.log(`[predictV662] Chunk ${chunkId + 1}: ${signals.length} señales candidatas → ${limited.length} señales emitidas`);
+  
+  return limited;
 }
 
 module.exports = { predictV662 };
