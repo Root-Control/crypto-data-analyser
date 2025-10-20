@@ -1,11 +1,11 @@
 {
   "version": "v6.6.2",
-  "timestamp": "2025-10-20T18:29:50.811Z",
+  "timestamp": "2025-10-20T18:31:45.488Z",
   "regime": "low",
   "emitted": 5,
   "long_short_balance": {
-    "LONG": 3,
-    "SHORT": 2
+    "LONG": 1,
+    "SHORT": 4
   },
   "pipeline": {
     "candidateLevels": 12,
@@ -18,9 +18,9 @@
     "picked": 5
   },
   "cluster": {
-    "lastPrice": 4514.99,
-    "atr10": 11.391,
-    "priceRadiusFinal": 5.418,
+    "lastPrice": 3840.73,
+    "atr10": 24.858,
+    "priceRadiusFinal": 8.7003,
     "removedByTime": 2,
     "removedByPrice": 1,
     "repScoreNaNFixed": 0
@@ -69,8 +69,8 @@
   },
   "direction": {
     "threshold": 0.42,
-    "directionScoreAvg_emitted": 0.9832,
-    "directionScoreAvg_all": 0.7866,
+    "directionScoreAvg_emitted": 1,
+    "directionScoreAvg_all": 0.8,
     "dirMissingCount": 0,
     "nearMissAcceptedCount": 0
   },
@@ -83,8 +83,8 @@
       "raw_count": 5
     },
     "direction": {
-      "mean": 0.9832,
-      "p25": 0.959,
+      "mean": 1,
+      "p25": 1,
       "p50": 1,
       "p75": 1,
       "raw_count": 5
@@ -148,6 +148,6 @@
   },
   "artifacts": {
     "pdf_path": "trades/reports/signals.pdf",
-    "snapshot_path": "trades/reports/signals-1760984990811.json"
+    "snapshot_path": "trades/reports/signals-1760985105489.json"
   }
 }
