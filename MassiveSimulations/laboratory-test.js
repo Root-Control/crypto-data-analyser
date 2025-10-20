@@ -43,11 +43,16 @@ let bestEfficientAccuracy = { value: 0, pnl: 0, config: null, tradesExecuted: In
     });
     
     // OPTIMIZACIÓN DE ALGORITMO - Constantes que afectan la precisión
-    const FINAL_SCORE_THRESHOLD =   [0.2, 0.3, 0.4, 0.5];           // Umbral para UP/DOWN vs SIDEWAYS
-    const RECENT_CANDLES_MOMENTUM = [5, 10, 15, 20];               // Ventana de momentum
-    const FLOW_RECENT_CANDLES =     [2, 3, 5, 7];                     // Ventana de volume flow
-    const CLIMAX_RECENT_CANDLES =   [3, 5, 7, 10];                  // Ventana de climax
-    
+    const FINAL_SCORE_THRESHOLD =   [0.1, 0.2, 0.3, 0.4];           // Umbral para UP/DOWN vs SIDEWAYS
+    const RECENT_CANDLES_MOMENTUM = [3, 5, 10, 15, 20];               // Ventana de momentum
+    const FLOW_RECENT_CANDLES =     [2, 3, 4, 5, 7, 10];                     // Ventana de volume flow
+    const CLIMAX_RECENT_CANDLES =   [3, 5, 7, 10, 12, 15];                  // Ventana de climax
+
+/*     const FINAL_SCORE_THRESHOLD =   [0.08,0.09,0.1, 0.11];           // Umbral para UP/DOWN vs SIDEWAYS
+    const RECENT_CANDLES_MOMENTUM = [4.8, 4.9, 5, 5.1];               // Ventana de momentum
+    const FLOW_RECENT_CANDLES =     [1, 2, 3, 4, 5];                     // Ventana de volume flow
+    const CLIMAX_RECENT_CANDLES =   [11, 12, 13, 15, 16];   
+     */
     // Mantener parámetros de trading óptimos encontrados
     const tpMultiplier = 1.2;
     const tpMaxPercent = 0.005;  // Mejor encontrado
