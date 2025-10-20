@@ -26,7 +26,7 @@ function computeATR(candles, period = 14) {
   return atr;
 }
 
-function buildSignal(idBase, candle, side, entry, sl, tp1, tp2, rr, eventScore, directionScore, votes) {
+function buildSignal(idBase, candle, side, entry, sl, tp1, tp2, rr, eventScore, directionScore, votes, volumeRatio) {
   return {
     id: `${idBase}-${candle.openTime}`,
     dtISO: candle.openTimeISO,
@@ -38,6 +38,7 @@ function buildSignal(idBase, candle, side, entry, sl, tp1, tp2, rr, eventScore, 
     rr: fmtNumber(rr, 2),
     eventScore: fmtNumber(eventScore, 3),
     directionScore: fmtNumber(directionScore, 3),
+    volumeRatio: fmtNumber(volumeRatio, 2),
     votes,
     targetsSource: 'atr',
     flags: [],
@@ -80,10 +81,11 @@ async function predictV662({ symbol, quantity = 1000, fromISO, previousCandles =
     const rr = Math.abs((tp1 - entry) / (entry - sl));
 
     const eventScore = Math.min(1, body / (atr || 1));
-    const directionScore = Math.min(1, Math.abs(change) / 0.01);
+    const directionScore = Math.min(1, Math.abs(change) / 0.01); // Normalize to 0-1 range
+    const volumeRatio = c.volume / (candles.slice(-20).reduce((sum, candle) => sum + candle.volume, 0) / 20); // 20-period avg
     const votes = { momentum: fmtNumber(directionScore, 3), book: 0.3, flow: 0.2, vwap: 0.1 };
 
-    signals.push(buildSignal(symbol, c, side, entry, sl, tp1, tp2, rr, eventScore, directionScore, votes));
+    signals.push(buildSignal(symbol, c, side, entry, sl, tp1, tp2, rr, eventScore, directionScore, votes, volumeRatio));
   }
 
   // clustering rudimentary: keep top by composite score and enforce max count

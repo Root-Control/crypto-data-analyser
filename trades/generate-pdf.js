@@ -117,7 +117,10 @@ function drawSignalCard(doc, idx, s, x, y, w) {
   }
 
   doc.moveDown(0.1);
-  doc.text(`Calidad → Evento: ${fmt(s.eventScore ?? 0, 3)}  Dirección: ${fmt(s.directionScore ?? 0, 3)}  VolRatio: ${fmt(s.volumeRatio ?? 1, 2)}x`, { width: innerW });
+  const eventScore = s.eventScore !== undefined ? fmt(s.eventScore, 3) : 'N/A';
+  const directionScore = s.directionScore !== undefined ? fmt(s.directionScore, 3) : 'N/A';
+  const volumeRatio = s.volumeRatio !== undefined ? fmt(s.volumeRatio, 2) : 'N/A';
+  doc.text(`Calidad → Evento: ${eventScore}  Dirección: ${directionScore}  VolRatio: ${volumeRatio}x`, { width: innerW });
 
   const endY = doc.y;
 

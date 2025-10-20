@@ -1,0 +1,153 @@
+{
+  "version": "v6.6.2",
+  "timestamp": "2025-10-20T17:37:00.533Z",
+  "regime": "low",
+  "emitted": 3,
+  "long_short_balance": {
+    "LONG": 0,
+    "SHORT": 3
+  },
+  "pipeline": {
+    "candidateLevels": 12,
+    "finalLevels": 6,
+    "candidateBreakouts": 24,
+    "confirmedBreakouts": 18,
+    "finalCandidateCount": 12,
+    "postClusterCount": 3,
+    "clusterBypass": false,
+    "picked": 3
+  },
+  "cluster": {
+    "lastPrice": 4042.73,
+    "atr10": 15.121,
+    "priceRadiusFinal": 5.2923,
+    "removedByTime": 2,
+    "removedByPrice": 1,
+    "repScoreNaNFixed": 0
+  },
+  "filters": {
+    "rejectedByScore": 7,
+    "rejectedByVolume": 4,
+    "rejectedByDirection": 3,
+    "rejectedBySpace": 0,
+    "rejectedByRR": 2,
+    "rejectedByQuality": 1,
+    "totalRejected": 17,
+    "finalFilterCounters": {
+      "byDirection": 3,
+      "bySpace": 0,
+      "byExpectedMove": 7,
+      "bySLTP": 2,
+      "byPacing": 3
+    }
+  },
+  "hygiene": {
+    "enabled": true,
+    "rejected": {
+      "spread": 0,
+      "depth": 0,
+      "tickVol": 1,
+      "tinySL": 2,
+      "tinyTP1": 1,
+      "noFollowThrough": 0,
+      "chop": 0,
+      "zeroVotes": 0,
+      "quietHours": 0
+    },
+    "thresholds": {
+      "SLMinPct": 0.045,
+      "spreadMultMin": 2.5,
+      "tickVolPctlMin": 40,
+      "zVolMin": 0.2,
+      "TP1MinPct": 0.14,
+      "TP1MinATR": 0.45
+    },
+    "oneFaultToleranceCount": 3,
+    "tp1FloorChosen": "relaxed",
+    "slFloorChosen": "struct",
+    "rejectedTotal": 4
+  },
+  "direction": {
+    "threshold": 0.42,
+    "directionScoreAvg_emitted": 1,
+    "directionScoreAvg_all": 0.8,
+    "dirMissingCount": 0,
+    "nearMissAcceptedCount": 0
+  },
+  "scores": {
+    "event": {
+      "mean": 1,
+      "p25": 1,
+      "p50": 1,
+      "p75": 1,
+      "raw_count": 3
+    },
+    "direction": {
+      "mean": 1,
+      "p25": 1,
+      "p50": 1,
+      "p75": 1,
+      "raw_count": 3
+    }
+  },
+  "pacing": {
+    "minSpacingBars": 4,
+    "cooldownSideBars": 1,
+    "maxSignals4h": 2,
+    "antiReverseBars": 6,
+    "removedByMinSpacing": 3,
+    "removedByCooldownSide": 0,
+    "removedByRateLimit4h": 0,
+    "blockedReverseAfterSL": 0,
+    "removedBySameBar": 0,
+    "totalPacingRejected": 3
+  },
+  "volume": {
+    "volumeRatioMinEffective": 1,
+    "volumeFallbackCount": 6,
+    "volumeClampApplied": false,
+    "volumeClampReason": ""
+  },
+  "rr_roi": {
+    "rrMinApplied": 1.3,
+    "rrAvg_emitted": 1.3,
+    "targetsSource": "atr",
+    "tpCapApplied": false
+  },
+  "space": {
+    "spaceOverrideCount": 2,
+    "spaceOverrides": {
+      "alignment": 1,
+      "pathClear": 0,
+      "weakOpposite": 0,
+      "atr_rr_ok": 0
+    },
+    "spaceFailuresAfterSLAdjust": 0
+  },
+  "sanity": {
+    "rejectedInFinalByScore": 0,
+    "bugFinalScore": false,
+    "failHardTarget": false
+  },
+  "telemetry_norm": {
+    "atrTargetOkCount": 16,
+    "atrTargetOkCountPerEvent": 5.3333,
+    "spaceOverrideCountPerEvent": 0.6667,
+    "volumeFallbackCountPerEvent": 2,
+    "oneFaultToleranceCountPerEvent": 1,
+    "eventScoreNormalized": true,
+    "lowEventScoreRejected": 1,
+    "denominator": "emitted"
+  },
+  "acceptance": {
+    "signals_in_range": false,
+    "cluster_ok": false,
+    "direction_ok": true,
+    "dirMissing_zero": true,
+    "counters_consistent": true
+  },
+  "artifacts": {
+    "pdf_path": "trades/reports/signals.pdf",
+    "snapshot_path": "trades/reports/signals-1760981820534.json"
+  }
+}
