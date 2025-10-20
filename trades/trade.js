@@ -315,6 +315,48 @@ class TradeManager {
   }
 
   /**
+   * Obtiene velas en lotes para superar el límite de 1500 de Binance
+   */
+  async getCandlesInBatches(symbol = 'ETHUSDT', interval = '15m', totalLimit = 100000) {
+    if (!this.isConnected) {
+      throw new Error('No está conectado a Redis');
+    }
+    
+    const batchSize = 1500; // Límite máximo de Binance
+    const batches = Math.ceil(totalLimit / batchSize);
+    const allCandles = [];
+    
+    console.log(`📊 Obteniendo ${totalLimit} velas en ${batches} lotes de ${batchSize}...`);
+    
+    for (let i = 0; i < batches; i++) {
+      const currentLimit = Math.min(batchSize, totalLimit - (i * batchSize));
+      console.log(`📡 Lote ${i + 1}/${batches}: obteniendo ${currentLimit} velas...`);
+      
+      try {
+        const batchCandles = await this.dataManager.getCandles(symbol, interval, currentLimit);
+        if (batchCandles && batchCandles.length > 0) {
+          allCandles.push(...batchCandles);
+          console.log(`✅ Lote ${i + 1}: ${batchCandles.length} velas obtenidas`);
+        } else {
+          console.log(`⚠️ Lote ${i + 1}: No se obtuvieron velas`);
+          break;
+        }
+      } catch (error) {
+        console.error(`❌ Error en lote ${i + 1}:`, error.message);
+        break;
+      }
+      
+      // Pequeña pausa entre requests para no sobrecargar la API
+      if (i < batches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    console.log(`📊 Total de velas obtenidas: ${allCandles.length}`);
+    return allCandles;
+  }
+
+  /**
    * Obtiene todas las velas
    */
   async getAllCandles() {
@@ -461,6 +503,9 @@ class TradeManager {
       
       console.log(`📊 Analizando ${candles.length} velas...`);
       
+      // Guardar velas en la instancia para uso posterior
+      this.lastCandles = candles;
+      
       // Resetear estado
       this.resetStats();
       this.trades = [];
@@ -500,7 +545,7 @@ class TradeManager {
       this.displayResults();
       
       // Generar PDF con los trades
-      await this.generateTradesPDF();
+      await this.generateSignalsPDF(this.lastCandles);
       
     } catch (error) {
       console.error('❌ Error en analyzeCandlesAndCreateTrades:', error);
@@ -1115,6 +1160,10 @@ class TradeManager {
    * PATCH v3 - Calcular VWAP
    */
   calculateVWAP(candles, index, period) {
+    if (!candles || index >= candles.length || !candles[index]) {
+      return 0;
+    }
+    
     const start = Math.max(0, index - period + 1);
     const end = index + 1;
     const recentCandles = candles.slice(start, end);
@@ -1123,12 +1172,15 @@ class TradeManager {
     let totalValue = 0;
     
     for (const candle of recentCandles) {
+      if (!candle || !candle.high || !candle.low || !candle.close || !candle.volume) {
+        continue;
+      }
       const typicalPrice = (candle.high + candle.low + candle.close) / 3;
       totalValue += typicalPrice * candle.volume;
           totalVolume += candle.volume;
         }
     
-    return totalVolume > 0 ? totalValue / totalVolume : candles[index].close;
+    return totalVolume > 0 ? totalValue / totalVolume : (candles[index]?.close || 0);
   }
 
   /**
@@ -1136,8 +1188,13 @@ class TradeManager {
    */
   calculateBookScore(candles, index) {
     // Simulación simple basada en momentum y volumen
+    if (!candles || index >= candles.length || !candles[index] || !candles[index].volume) {
+      return 0;
+    }
+    
     const momentum = this.calculateMomentum(candles, index);
-    const volumeRatio = candles[index].volume / this.calculateAvgVolume(candles, index, 20);
+    const avgVolume = this.calculateAvgVolume(candles, index, 20);
+    const volumeRatio = avgVolume > 0 ? candles[index].volume / avgVolume : 1;
     
     return momentum * volumeRatio;
   }
@@ -1147,10 +1204,15 @@ class TradeManager {
    */
   calculateFlowScore(candles, index) {
     // Simulación simple basada en cambios de precio
-    if (index < 5) return 0;
+    if (index < 5 || !candles || index >= candles.length || !candles[index] || !candles[index - 5]) {
+      return 0;
+    }
     
     const current = candles[index].close;
     const past = candles[index - 5].close;
+    
+    if (!current || !past) return 0;
+    
     const change = (current - past) / past;
     
     return change * 100; // Escalar para simular flow
@@ -2770,7 +2832,7 @@ class TradeManager {
   /**
    * PATCH v6.6.2 - Generar PDF de señales con explicaciones simples
    */
-  async generateSignalsPDF() {
+  async generateSignalsPDF(candles = []) {
     const PDFDocument = require('pdfkit');
     const fs = require('fs');
     const path = require('path');
@@ -2808,7 +2870,7 @@ class TradeManager {
           doc.addPage();
         }
         
-        this.addSignalToPDF(doc, signal, index + 1);
+        this.addSignalToPDF(doc, signal, index + 1, this.lastCandles);
       });
       
       // Finalizar PDF
@@ -2824,7 +2886,7 @@ class TradeManager {
   /**
    * PATCH v6.6.2 - Agregar señal individual al PDF
    */
-  addSignalToPDF(doc, signal, signalNumber) {
+  addSignalToPDF(doc, signal, signalNumber, candles = []) {
     const date = new Date(signal.timestamp);
     const dateStr = date.toLocaleDateString('es-ES');
     const timeStr = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -2859,7 +2921,25 @@ class TradeManager {
     doc.text(`• Stop Loss: ${slPct.toFixed(3)}%`);
     doc.text(`• Take Profit 1: ${tp1Pct.toFixed(3)}%`);
     doc.text(`• Take Profit 2: ${tp2Pct.toFixed(3)}%`);
-    doc.moveDown(1);
+    doc.moveDown(0.5);
+    
+      // MOVIMIENTO REAL (SIGUIENTE VELA) - NUEVO APARTADO
+      const realMovement = this.calculateRealMovement(signal, candles);
+      doc.fontSize(12).text('MOVIMIENTO REAL (SIGUIENTE VELA)', { underline: true });
+      doc.fontSize(10);
+      doc.text(`• Máximo porcentaje que bajó: ${realMovement.maxDownPct.toFixed(3)}%`);
+      doc.text(`• Máximo porcentaje que subió: ${realMovement.maxUpPct.toFixed(3)}%`);
+      
+      // Información de la mecha según el tipo de señal
+      if (signal.type === 'LONG') {
+        doc.text(`• Tamaño mecha superior: $${realMovement.wickSize.toFixed(2)} (${realMovement.wickSizePct.toFixed(3)}%)`);
+      } else if (signal.type === 'SHORT') {
+        doc.text(`• Tamaño mecha inferior: $${realMovement.wickSize.toFixed(2)} (${realMovement.wickSizePct.toFixed(3)}%)`);
+      }
+      
+      // Dónde murió el precio (cierre)
+      doc.text(`• Dónde murió el precio: ${realMovement.closePct.toFixed(3)}% desde entrada`);
+      doc.moveDown(1);
     
     // Cálculos de riesgo
     const riskAmount = Math.abs(signal.entryPrice - signal.slPrice);
@@ -2933,6 +3013,97 @@ class TradeManager {
       flags.forEach(flag => {
         doc.text(`• ${this.getFlagExplanation(flag)}`);
       });
+    }
+  }
+
+  /**
+   * PATCH v6.7 - Calcular movimiento real de las 5 velas siguientes
+   */
+  calculateRealMovement(signal, candles = []) {
+    try {
+      // Obtener el índice de la vela de la señal
+      const signalCandleIndex = signal.candleIndex || 0;
+      const entryPrice = signal.entryPrice;
+      const signalType = signal.type; // 'LONG' o 'SHORT'
+      
+      // Si no hay velas disponibles, retornar valores por defecto
+      if (!candles || candles.length === 0) {
+        console.log('⚠️ No hay velas disponibles para calcular movimiento real');
+        return {
+          maxDownPct: 0.0,
+          maxUpPct: 0.0,
+          wickSize: 0.0,
+          wickSizePct: 0.0,
+          closePct: 0.0
+        };
+      }
+      
+      // Obtener la siguiente vela (solo una vela)
+      const nextCandleIndex = signalCandleIndex + 1;
+      if (nextCandleIndex >= candles.length) {
+        console.log('⚠️ No hay vela siguiente a la señal para calcular movimiento real');
+        return {
+          maxDownPct: 0.0,
+          maxUpPct: 0.0,
+          wickSize: 0.0,
+          wickSizePct: 0.0,
+          closePct: 0.0
+        };
+      }
+      
+      const nextCandle = candles[nextCandleIndex];
+      if (!nextCandle) {
+        return {
+          maxDownPct: 0.0,
+          maxUpPct: 0.0,
+          wickSize: 0.0,
+          wickSizePct: 0.0,
+          closePct: 0.0
+        };
+      }
+      
+      // Calcular el movimiento desde el precio de entrada en la siguiente vela
+      const highPct = ((nextCandle.high - entryPrice) / entryPrice) * 100;
+      const lowPct = ((nextCandle.low - entryPrice) / entryPrice) * 100;
+      const closePct = ((nextCandle.close - entryPrice) / entryPrice) * 100;
+      
+      // Calcular el tamaño de la mecha según el tipo de señal
+      let wickSize = 0;
+      let wickSizePct = 0;
+      
+      if (signalType === 'LONG') {
+        // Para LONG: mecha superior (high - max(open, close))
+        const bodyTop = Math.max(nextCandle.open, nextCandle.close);
+        wickSize = nextCandle.high - bodyTop;
+        wickSizePct = (wickSize / entryPrice) * 100;
+      } else if (signalType === 'SHORT') {
+        // Para SHORT: mecha inferior (min(open, close) - low)
+        const bodyBottom = Math.min(nextCandle.open, nextCandle.close);
+        wickSize = bodyBottom - nextCandle.low;
+        wickSizePct = (wickSize / entryPrice) * 100;
+      }
+      
+      // Asegurar que los valores sean positivos para mostrar
+      const maxDownPct = Math.abs(lowPct);
+      const maxUpPct = Math.abs(highPct);
+      
+      return {
+        maxDownPct: maxDownPct,
+        maxUpPct: maxUpPct,
+        wickSize: wickSize,
+        wickSizePct: wickSizePct,
+        closePct: closePct
+      };
+      
+    } catch (error) {
+      console.error('Error calculando movimiento real:', error);
+      return {
+        maxDownPct: 0.0,
+        maxUpPct: 0.0,
+        wickSize: 0.0,
+        wickSizePct: 0.0,
+        closePct: 0.0
+      };
     }
   }
 
@@ -3184,13 +3355,14 @@ Es como si el globo finalmente pudo caer!`;
     }
     
     // Canary 3: Verificar que no hay señales sin directionScore
-    if (this.stats.directionStats.dirMissingCount > 0) {
-      console.error(`🚨 CANARY FAIL: dirMissingCount=${this.stats.directionStats.dirMissingCount} > 0`);
+    const dirMissingCount = this.stats.directionStats?.dirMissingCount || 0;
+    if (dirMissingCount > 0) {
+      console.error(`🚨 CANARY FAIL: dirMissingCount=${dirMissingCount} > 0`);
       console.error(`   Esto indica que se están perdiendo directionScores en el pipeline`);
     }
     
     // Log de estado de canary
-    console.log(`🔍 CANARY STATUS: postCluster=${postClusterCount}, dirAvg=${directionScoreAvg_emitted.toFixed(3)}, dirMissing=${this.stats.directionStats.dirMissingCount}`);
+    console.log(`🔍 CANARY STATUS: postCluster=${postClusterCount}, dirAvg=${directionScoreAvg_emitted.toFixed(3)}, dirMissing=${dirMissingCount}`);
   }
 
   /**
@@ -3638,8 +3810,8 @@ Es como si el globo finalmente pudo caer!`;
     console.assert(picked === signalsTotal && signalsTotal === actualSignalsEmitted, 
       `❌ INVARIANTE ROTO: picked=${picked}, signalsTotal=${signalsTotal}, actualSignalsEmitted=${actualSignalsEmitted}`);
     
-    console.assert(this.stats.directionStats.dirMissingCount === 0, 
-      `❌ INVARIANTE ROTO: dirMissingCount=${this.stats.directionStats.dirMissingCount} (debe ser 0)`);
+    console.assert((this.stats.directionStats?.dirMissingCount || 0) === 0, 
+      `❌ INVARIANTE ROTO: dirMissingCount=${this.stats.directionStats?.dirMissingCount || 0} (debe ser 0)`);
     
     // LOG OBLIGATORIO v6.7
     console.log(`EMIT_SUMMARY v6.7 | picked=${picked} | emitted=${signalsTotal} | actual=${actualSignalsEmitted} | postCluster=${postClusterCount} | dirAvgEmit=${directionScoreAvg_emitted.toFixed(3)} | tp1Pct_avg=${(this.stats.costsStats?.tp1Pct_avg || 0).toFixed(3)}% | tp1_cost_pass_rate=${(this.stats.costsStats?.tp1_cost_pass_rate || 0).toFixed(1)}%`);
@@ -4379,21 +4551,30 @@ Es como si el globo finalmente pudo caer!`;
    * PATCH v2 - Métodos auxiliares
    */
   calculateAvgVolume(candles, index, period) {
+    if (!candles || index >= candles.length) {
+      return 1;
+    }
+    
     const start = Math.max(0, index - period);
     const end = Math.min(candles.length, index);
     const recentCandles = candles.slice(start, end);
     
-    if (recentCandles.length === 0) return 0;
+    const validCandles = recentCandles.filter(candle => candle && candle.volume);
+    if (validCandles.length === 0) {
+      return 1;
+    }
     
-    const totalVolume = recentCandles.reduce((sum, candle) => sum + candle.volume, 0);
-    return totalVolume / recentCandles.length;
+    const totalVolume = validCandles.reduce((sum, candle) => sum + candle.volume, 0);
+    return totalVolume / validCandles.length;
   }
 
   calculateMomentum(candles, index) {
-    if (index < 10) return 0;
+    if (index < 10 || !candles[index] || !candles[index - 10]) return 0;
     
     const current = candles[index].close;
     const past = candles[index - 10].close;
+    
+    if (!current || !past) return 0;
     
     return (current - past) / past;
   }
@@ -4788,17 +4969,23 @@ Es como si el globo finalmente pudo caer!`;
   /**
    * PATCH v2 - Genera un PDF con todas las señales
    */
-  async generateTradesPDF() {
+  async generateTradesPDF(candles = []) {
     try {
       const doc = new PDFDocument();
-      const outputPath = path.join(__dirname, 'trades-report.pdf');
+      const outputPath = path.join(__dirname, 'reports', 'signals.pdf');
+      
+      // Crear directorio si no existe
+      const reportsDir = path.join(__dirname, 'reports');
+      if (!fs.existsSync(reportsDir)) {
+        fs.mkdirSync(reportsDir, { recursive: true });
+      }
       
       doc.pipe(fs.createWriteStream(outputPath));
       
       // Título
       doc.fontSize(20)
          .fillColor('#2c3e50')
-         .text('PATCH v2 - REPORTE DE SEÑALES', 50, 50);
+         .text('SEÑALES DE TRADING v6.7', 50, 50);
       
       doc.fontSize(12)
          .fillColor('#7f8c8d')
@@ -4912,9 +5099,9 @@ Es como si el globo finalmente pudo caer!`;
         
         // Métricas
         doc.text(`RR: ${signal.rr.toFixed(2)}`, 450, y + 25)
-           .text(`Score: ${signal.breakoutScore.toFixed(3)}`, 450, y + 40)
-           .text(`Vol: ${signal.volumeRatio.toFixed(2)}`, 450, y + 55)
-           .text(`Beyond: ${signal.closeBeyondPct.toFixed(2)}%`, 450, y + 70);
+           .text(`Score: ${(signal.eventScore || 0).toFixed(3)}`, 450, y + 40)
+           .text(`Vol: ${(signal.volumeRatio || 0).toFixed(2)}`, 450, y + 55)
+           .text(`Beyond: ${(signal.closeBeyondPct || 0).toFixed(2)}%`, 450, y + 70);
         
         // Level
           doc.fontSize(9)
