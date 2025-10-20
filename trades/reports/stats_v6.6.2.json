@@ -1,11 +1,11 @@
 {
   "version": "v6.6.2",
-  "timestamp": "2025-10-20T18:26:35.552Z",
+  "timestamp": "2025-10-20T18:27:34.146Z",
   "regime": "low",
-  "emitted": 3,
+  "emitted": 4,
   "long_short_balance": {
     "LONG": 0,
-    "SHORT": 3
+    "SHORT": 4
   },
   "pipeline": {
     "candidateLevels": 12,
@@ -13,14 +13,14 @@
     "candidateBreakouts": 24,
     "confirmedBreakouts": 18,
     "finalCandidateCount": 12,
-    "postClusterCount": 3,
+    "postClusterCount": 4,
     "clusterBypass": false,
-    "picked": 3
+    "picked": 4
   },
   "cluster": {
-    "lastPrice": 3946.71,
-    "atr10": 27.231,
-    "priceRadiusFinal": 9.5308,
+    "lastPrice": 3911.26,
+    "atr10": 34.86,
+    "priceRadiusFinal": 12.201,
     "removedByTime": 2,
     "removedByPrice": 1,
     "repScoreNaNFixed": 0
@@ -38,7 +38,7 @@
       "bySpace": 0,
       "byExpectedMove": 7,
       "bySLTP": 2,
-      "byPacing": 3
+      "byPacing": 2
     }
   },
   "hygiene": {
@@ -80,14 +80,14 @@
       "p25": 1,
       "p50": 1,
       "p75": 1,
-      "raw_count": 3
+      "raw_count": 4
     },
     "direction": {
       "mean": 1,
       "p25": 1,
       "p50": 1,
       "p75": 1,
-      "raw_count": 3
+      "raw_count": 4
     }
   },
   "pacing": {
@@ -97,10 +97,10 @@
     "antiReverseBars": 6,
     "removedByMinSpacing": 2,
     "removedByCooldownSide": 0,
-    "removedByRateLimit4h": 1,
+    "removedByRateLimit4h": 0,
     "blockedReverseAfterSL": 0,
     "removedBySameBar": 0,
-    "totalPacingRejected": 3
+    "totalPacingRejected": 2
   },
   "volume": {
     "volumeRatioMinEffective": 1,
@@ -131,16 +131,16 @@
   },
   "telemetry_norm": {
     "atrTargetOkCount": 16,
-    "atrTargetOkCountPerEvent": 5.3333,
-    "spaceOverrideCountPerEvent": 0.6667,
-    "volumeFallbackCountPerEvent": 2,
-    "oneFaultToleranceCountPerEvent": 1,
+    "atrTargetOkCountPerEvent": 4,
+    "spaceOverrideCountPerEvent": 0.5,
+    "volumeFallbackCountPerEvent": 1.5,
+    "oneFaultToleranceCountPerEvent": 0.75,
     "eventScoreNormalized": true,
     "lowEventScoreRejected": 1,
     "denominator": "emitted"
   },
   "acceptance": {
-    "signals_in_range": false,
+    "signals_in_range": true,
     "cluster_ok": false,
     "direction_ok": true,
     "dirMissing_zero": true,
@@ -148,6 +148,6 @@
   },
   "artifacts": {
     "pdf_path": "trades/reports/signals.pdf",
-    "snapshot_path": "trades/reports/signals-1760984795552.json"
+    "snapshot_path": "trades/reports/signals-1760984854146.json"
   }
 }

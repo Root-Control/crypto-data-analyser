@@ -87,9 +87,25 @@ function drawGeneralInfoPage(doc, signals, regime, symbol, dateRange, previousCa
   doc.text(`RR promedio: ${fmt(avgRR, 3)}`);
   
   if (dateRange && dateRange.from && dateRange.to) {
-    const fromDate = formatLimaDateOnly(dateRange.from);
-    const toDate = formatLimaDateOnly(dateRange.to);
-    doc.text(`Período de análisis: ${fromDate} - ${toDate}`);
+    const fromDate = new Date(dateRange.from);
+    const toDate = new Date(dateRange.to);
+    const fromFormatted = fromDate.toLocaleString('es-PE', { 
+      timeZone: 'America/Lima',
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const toFormatted = toDate.toLocaleString('es-PE', { 
+      timeZone: 'America/Lima',
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Período de análisis: ${fromFormatted} - ${toFormatted} (Lima)`);
   }
   
   doc.moveDown(0.5);
