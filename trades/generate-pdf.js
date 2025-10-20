@@ -63,6 +63,70 @@ function drawHeader(doc, title, info) {
   doc.moveDown(0.4);
 }
 
+function drawGeneralInfoPage(doc, signals, regime, symbol, dateRange, previousCandles, pacingStats) {
+  // Título principal
+  doc.fillColor('#1976D2').fontSize(20).text('REPORTE DE SEÑALES DE TRADING v6.6.2', { align: 'center' });
+  doc.moveDown(0.5);
+
+  // Información general
+  doc.fillColor('#424242').fontSize(14).text('📊 INFORMACIÓN GENERAL', { underline: true });
+  doc.moveDown(0.3);
+  doc.fillColor('#000').fontSize(11);
+  
+  const totalSignals = signals.length;
+  const longCount = signals.filter(s => s.side === 'LONG').length;
+  const shortCount = signals.filter(s => s.side === 'SHORT').length;
+  const avgRR = signals.length ? signals.reduce((sum, s) => sum + (s.rr || 0), 0) / signals.length : 0;
+  
+  doc.text(`• Total de señales emitidas: ${totalSignals}`);
+  doc.text(`• Balance LONG/SHORT: ${longCount}/${shortCount}`);
+  doc.text(`• Símbolo: ${symbol}`);
+  doc.text(`• Timeframe: 15 minutos`);
+  doc.text(`• Regime: ${regime}`);
+  doc.text(`• Velas previas por predicción: ${previousCandles}`);
+  doc.text(`• RR promedio: ${fmt(avgRR, 3)}`);
+  
+  if (dateRange && dateRange.from && dateRange.to) {
+    const fromDate = formatLimaDateOnly(dateRange.from);
+    const toDate = formatLimaDateOnly(dateRange.to);
+    doc.text(`• Período de análisis: ${fromDate} - ${toDate}`);
+  }
+  
+  doc.moveDown(0.5);
+
+  // Configuración de pacing
+  doc.fillColor('#424242').fontSize(14).text('⚙️ CONFIGURACIÓN DE PACING', { underline: true });
+  doc.moveDown(0.3);
+  doc.fillColor('#000').fontSize(11);
+  doc.text(`• Espaciado mínimo: ${pacingStats.minSpacingBars} barras (1 hora)`);
+  doc.text(`• Cooldown por lado: ${pacingStats.cooldownSideBars} barra (15 minutos)`);
+  doc.text(`• Máximo por 4h: ${pacingStats.maxSignals4h} señales`);
+  doc.text(`• Anti-reversa tras SL: ${pacingStats.antiReverseBars} barras`);
+  doc.moveDown(0.5);
+
+  // Estadísticas de filtrado
+  doc.fillColor('#424242').fontSize(14).text('📈 ESTADÍSTICAS DE FILTRADO', { underline: true });
+  doc.moveDown(0.3);
+  doc.fillColor('#000').fontSize(11);
+  doc.text(`• Rechazadas por espaciado: ${pacingStats.removedByMinSpacing}`);
+  doc.text(`• Rechazadas por cooldown: ${pacingStats.removedByCooldownSide}`);
+  doc.text(`• Rechazadas por rate limit: ${pacingStats.removedByRateLimit4h}`);
+  doc.text(`• Bloqueadas por anti-reversa: ${pacingStats.blockedReverseAfterSL}`);
+  doc.text(`• Total rechazadas: ${pacingStats.totalPacingRejected}`);
+  doc.moveDown(0.5);
+
+  // Resumen de señales
+  doc.fillColor('#424242').fontSize(14).text('🎯 RESUMEN DE SEÑALES', { underline: true });
+  doc.moveDown(0.3);
+  doc.fillColor('#000').fontSize(11);
+  
+  signals.forEach((signal, idx) => {
+    const date = new Date(signal.dtISO);
+    const limaTime = formatTzFull(signal.dtISO, 'America/Lima');
+    doc.text(`${idx + 1}. ${signal.side} - ${limaTime} - Entrada: $${fmt(signal.entry, 2)} - RR: ${fmt(signal.rr, 2)}`);
+  });
+}
+
 function drawSignalCard(doc, idx, s, x, y, w, previousCandles = 500) {
   const startX = x;
   const startY = y;
@@ -93,6 +157,18 @@ function drawSignalCard(doc, idx, s, x, y, w, previousCandles = 500) {
     const c = s.candle;
     doc.moveDown(0.1);
     doc.text(`O: $${fmt(c.open, 2)}  H: $${fmt(c.high, 2)}  L: $${fmt(c.low, 2)}  C: $${fmt(c.close, 2)}  Vol: ${fmt(c.volume, 2)}`, { width: innerW });
+  }
+
+  // Información de la próxima vela
+  if (s.moveNext) {
+    doc.moveDown(0.2);
+    doc.fillColor('#2E7D32').fontSize(9).text('📈 PRÓXIMA VELA:', { width: innerW });
+    doc.fillColor('#000').fontSize(8);
+    const m = s.moveNext;
+    doc.text(`Máximo que subió: ${fmt(m.up1Pct, 2)}%`, { width: innerW });
+    doc.text(`Máximo que bajó: ${fmt(m.down1Pct, 2)}%`, { width: innerW });
+    doc.text(`Wick bajo: $${fmt(m.wickLow, 2)} (${fmt(m.wickLowPct, 2)}%)`, { width: innerW });
+    doc.text(`Cierre vs entrada: ${fmt(m.closeDeltaPct, 2)}%`, { width: innerW });
   }
 
   if (typeof s.slPct === 'number' || typeof s.tp1Pct === 'number' || typeof s.tp2Pct === 'number') {
@@ -136,48 +212,107 @@ function drawSignalCard(doc, idx, s, x, y, w, previousCandles = 500) {
   return startY + Math.max(cardH + pad, 60) + 6; // next y
 }
 
-function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'low', symbol = 'ETHUSDT', dateRange, previousCandles = 500, outPath = path.join('trades', 'reports', 'signals.pdf') }) {
-  const titleWithRange = dateRange && dateRange.from && dateRange.to
-    ? `${title} (${formatLimaDateOnly(dateRange.from)} - ${formatLimaDateOnly(dateRange.to)})`
-    : title;
+function drawFullSignalPage(doc, signal, idx, previousCandles) {
+  // Título de la señal
+  doc.fillColor('#1976D2').fontSize(18).text(`SEÑAL #${idx + 1} (${previousCandles} prev)`, { align: 'center' });
+  doc.moveDown(0.3);
 
+  // Información básica
+  doc.fillColor('#424242').fontSize(14).text('📋 INFORMACIÓN BÁSICA', { underline: true });
+  doc.moveDown(0.2);
+  doc.fillColor('#000').fontSize(11);
+  
+  const lima = formatTzFull(signal.dtISO, 'America/Lima');
+  const mexico = formatTzFull(signal.dtISO, 'America/Mexico_City');
+  
+  doc.text(`• Fecha (Lima): ${lima}`);
+  doc.text(`• Fecha (México): ${mexico}`);
+  doc.text(`• Tipo: ${signal.side === 'LONG' ? 'COMPRA (LONG)' : 'VENTA (SHORT)'}`);
+  doc.text(`• Entrada: $${fmt(signal.entry, 2)}`);
+  doc.text(`• Stop Loss: $${fmt(signal.sl, 2)}`);
+  doc.text(`• Take Profit 1: $${fmt(signal.tp1, 2)}`);
+  if (typeof signal.tp2 === 'number') {
+    doc.text(`• Take Profit 2: $${fmt(signal.tp2, 2)}`);
+  }
+  doc.text(`• Risk/Reward: ${fmt(signal.rr, 3)}`);
+  
+  doc.moveDown(0.3);
+
+  // Datos de la vela
+  if (signal.candle) {
+    doc.fillColor('#424242').fontSize(14).text('🕯️ DATOS DE LA VELA', { underline: true });
+    doc.moveDown(0.2);
+    doc.fillColor('#000').fontSize(11);
+    const c = signal.candle;
+    doc.text(`• Apertura: $${fmt(c.open, 2)}`);
+    doc.text(`• Máximo: $${fmt(c.high, 2)}`);
+    doc.text(`• Mínimo: $${fmt(c.low, 2)}`);
+    doc.text(`• Cierre: $${fmt(c.close, 2)}`);
+    doc.text(`• Volumen: ${fmt(c.volume, 2)}`);
+    doc.moveDown(0.3);
+  }
+
+  // Próxima vela
+  if (signal.moveNext) {
+    doc.fillColor('#424242').fontSize(14).text('📈 PRÓXIMA VELA', { underline: true });
+    doc.moveDown(0.2);
+    doc.fillColor('#000').fontSize(11);
+    const m = signal.moveNext;
+    doc.text(`• Máximo que subió: ${fmt(m.up1Pct, 2)}%`);
+    doc.text(`• Máximo que bajó: ${fmt(m.down1Pct, 2)}%`);
+    doc.text(`• Wick bajo: $${fmt(m.wickLow, 2)} (${fmt(m.wickLowPct, 2)}%)`);
+    doc.text(`• Cierre vs entrada: ${fmt(m.closeDeltaPct, 2)}%`);
+    doc.moveDown(0.3);
+  }
+
+  // Análisis de riesgo
+  if (signal.risk) {
+    doc.fillColor('#424242').fontSize(14).text('⚠️ ANÁLISIS DE RIESGO', { underline: true });
+    doc.moveDown(0.2);
+    doc.fillColor('#000').fontSize(11);
+    const r = signal.risk;
+    doc.text(`• Riesgo USD: $${fmt(r.riskUSD, 2)}`);
+    doc.text(`• Ganancia USD: $${fmt(r.gainUSD, 2)}`);
+    doc.moveDown(0.3);
+  }
+
+  // Comisiones y fees
+  if (signal.fees) {
+    doc.fillColor('#424242').fontSize(14).text('💰 COMISIONES Y FEES', { underline: true });
+    doc.moveDown(0.2);
+    doc.fillColor('#000').fontSize(11);
+    const f = signal.fees;
+    doc.text(`• ROI Taker: ${fmt(f.roiTaker, 3)}%`);
+    doc.text(`• ROI Maker: ${fmt(f.roiMaker, 3)}%`);
+    doc.moveDown(0.3);
+  }
+
+  // Movimientos porcentuales
+  if (typeof signal.slPct === 'number' || typeof signal.tp1Pct === 'number' || typeof signal.tp2Pct === 'number') {
+    doc.fillColor('#424242').fontSize(14).text('📊 MOVIMIENTOS PORCENTUALES', { underline: true });
+    doc.moveDown(0.2);
+    doc.fillColor('#000').fontSize(11);
+    if (typeof signal.slPct === 'number') doc.text(`• SL: ${fmt(signal.slPct, 3)}%`);
+    if (typeof signal.tp1Pct === 'number') doc.text(`• TP1: ${fmt(signal.tp1Pct, 3)}%`);
+    if (typeof signal.tp2Pct === 'number') doc.text(`• TP2: ${fmt(signal.tp2Pct, 3)}%`);
+  }
+}
+
+function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'low', symbol = 'ETHUSDT', dateRange, previousCandles = 500, pacingStats, outPath = path.join('trades', 'reports', 'signals.pdf') }) {
   ensureDir(path.dirname(outPath));
   const doc = new PDFDocument({ size: 'A4', margin: 36 });
   const stream = fs.createWriteStream(outPath);
   doc.pipe(stream);
 
-  const dirAvg = signals.length ? signals.reduce((a, s) => a + (s.directionScore || 0), 0) / signals.length : 0;
-  const balanceLong = signals.filter(s => s.side === 'LONG').length;
-  const balanceShort = signals.filter(s => s.side === 'SHORT').length;
+  // Página 1: Información general
+  drawGeneralInfoPage(doc, signals, regime, symbol, dateRange, previousCandles, pacingStats);
 
-  drawHeader(doc, titleWithRange, { total: signals.length, regime, dirAvg, balanceLong, balanceShort, symbol });
-
-  const gutter = 14;
-  const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const colW = (pageW - gutter) / 2;
-  let col = 0; // 0 left, 1 right
-  let yPos = doc.y;
-
-  signals.forEach((s, idx) => {
-    const x = doc.page.margins.left + (col === 0 ? 0 : colW + gutter);
-    const nextY = drawSignalCard(doc, idx, s, x, yPos, colW, previousCandles);
-
-    if (col === 0) {
-      // place next in right column at same y
-      col = 1;
-    } else {
-      // move to next row
-      col = 0;
-      yPos = Math.max(nextY, yPos);
-    }
-
-    // If next placement would overflow page, new page
-    const bottomLimit = doc.page.height - doc.page.margins.bottom - 40;
-    if (yPos + 80 > bottomLimit) {
+  // Páginas siguientes: Una señal por página
+  signals.forEach((signal, idx) => {
+    if (idx > 0) {
       doc.addPage();
-      yPos = doc.page.margins.top;
-      col = 0;
     }
+    drawFullSignalPage(doc, signal, idx, previousCandles);
   });
 
   doc.end();
