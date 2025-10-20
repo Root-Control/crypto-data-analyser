@@ -583,7 +583,10 @@ async function main() {
   fs.writeFileSync(statsOut, JSON.stringify(polished, null, 2));
 
   const pdfOut = path.join(reportsDir, 'signals.pdf');
-  const dateRange = candles.length ? { from: candles[0].openTime, to: candles[candles.length - 1].openTime } : undefined;
+  const dateRange = signalsWithPacing.length ? { 
+    from: signalsWithPacing[0].dtISO, 
+    to: signalsWithPacing[signalsWithPacing.length - 1].dtISO 
+  } : undefined;
   await generatePdf({ signals: signalsWithPacing, regime, symbol, dateRange, previousCandles, pacingStats, outPath: pdfOut });
 
   // EMIT_SUMMARY with real values
