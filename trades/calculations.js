@@ -45,11 +45,18 @@ function calculateNextCandleMovement(entry, nextCandle) {
   
   const up1Pct = ((nextCandle.high - entry) / entry) * 100;
   const down1Pct = ((entry - nextCandle.low) / entry) * 100;
+  
+  // Wick inferior (para SHORT)
   const wickLow = Math.max(0, entry - nextCandle.low);
   const wickLowPct = (wickLow / entry) * 100;
+  
+  // Wick superior (para LONG)
+  const wickHigh = Math.max(0, nextCandle.high - entry);
+  const wickHighPct = (wickHigh / entry) * 100;
+  
   const closeDeltaPct = ((nextCandle.close - entry) / entry) * 100;
   
-  return { up1Pct, down1Pct, wickLow, wickLowPct, closeDeltaPct };
+  return { up1Pct, down1Pct, wickLow, wickLowPct, wickHigh, wickHighPct, closeDeltaPct };
 }
 
 module.exports = {

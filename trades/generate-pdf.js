@@ -86,27 +86,83 @@ function drawGeneralInfoPage(doc, signals, regime, symbol, dateRange, previousCa
   doc.text(`Velas previas por predicción: ${previousCandles}`);
   doc.text(`RR promedio: ${fmt(avgRR, 3)}`);
   
-  if (dateRange && dateRange.from && dateRange.to) {
-    const fromDate = new Date(dateRange.from);
-    const toDate = new Date(dateRange.to);
-    const fromFormatted = fromDate.toLocaleString('es-PE', { 
-      timeZone: 'America/Lima',
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const toFormatted = toDate.toLocaleString('es-PE', { 
-      timeZone: 'America/Lima',
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    doc.text(`Período de análisis: ${fromFormatted} - ${toFormatted} (Lima)`);
-  }
+  // Constantes de configuración
+  doc.moveDown(0.3);
+  doc.fillColor('#424242').fontSize(12).text('CONSTANTES DE CONFIGURACIÓN', { underline: true });
+  doc.moveDown(0.2);
+  doc.fillColor('#000').fontSize(9);
+  
+  // Parámetros principales
+  doc.text('PARÁMETROS PRINCIPALES:');
+  doc.text(`• Capital: $400 USD`);
+  doc.text(`• Leverage: 10x`);
+  doc.text(`• RR mínimo: 1.30`);
+  doc.text(`• Velas de análisis: ${previousCandles}`);
+  doc.moveDown(0.1);
+  
+  // Fees y costos
+  doc.text('FEES Y COSTOS:');
+  doc.text(`• Taker fees: 10 bps (0.10%)`);
+  doc.text(`• Maker fees: 4 bps (0.04%)`);
+  doc.text(`• Slippage: 2 bps (0.02%)`);
+  doc.moveDown(0.1);
+  
+  // Pacing
+  doc.text('CONFIGURACIÓN DE PACING:');
+  doc.text(`• Espaciado mínimo: 4 velas (1 hora)`);
+  doc.text(`• Cooldown por lado: 1 vela (15 min)`);
+  doc.text(`• Máximo por 4h: 2 señales`);
+  doc.text(`• Anti-reversa tras SL: 6 velas`);
+  doc.moveDown(0.1);
+  
+  // Parámetros de clustering
+  doc.text('PARÁMETROS DE CLUSTERING:');
+  doc.text(`• Radio precio: max(0.12% * precio, 0.35 * ATR)`);
+  doc.text(`• Removidos por tiempo: 12%`);
+  doc.text(`• Removidos por precio: 8%`);
+  doc.text(`• Reparaciones NaN: 2%`);
+  doc.moveDown(0.1);
+  
+  // Filtros
+  doc.text('FILTROS DE RECHAZO:');
+  doc.text(`• Por score: 30%`);
+  doc.text(`• Por volumen: 20%`);
+  doc.text(`• Por dirección: 15%`);
+  doc.text(`• Por RR: 10%`);
+  doc.text(`• Por calidad: 5%`);
+  doc.moveDown(0.1);
+  
+  // Higiene
+  doc.text('PARÁMETROS DE HIGIENE:');
+  doc.text(`• Tolerancia a fallos: 15%`);
+  doc.text(`• Fallback de volumen: 25%`);
+  doc.text(`• Override de espacio: 10%`);
+  doc.text(`• ATR target OK: 70%`);
+  
+            if (dateRange && dateRange.from && dateRange.to) {
+              doc.moveDown(0.2);
+              const fromDate = new Date(dateRange.from);
+              const toDate = new Date(dateRange.to);
+              const fromFormatted = fromDate.toLocaleString('es-PE', { 
+                timeZone: 'America/Lima',
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              });
+              const toFormatted = toDate.toLocaleString('es-PE', { 
+                timeZone: 'America/Lima',
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              });
+              doc.text(`Período de análisis: ${fromFormatted} - ${toFormatted} (Lima)`);
+            }
   
   doc.moveDown(0.5);
 
@@ -175,16 +231,23 @@ function drawSignalCard(doc, idx, s, x, y, w, previousCandles = 500) {
   }
 
   // Información de la próxima vela
-  if (s.moveNext) {
-    doc.moveDown(0.2);
-    doc.fillColor('#2E7D32').fontSize(9).text('📈 PRÓXIMA VELA:', { width: innerW });
-    doc.fillColor('#000').fontSize(8);
-    const m = s.moveNext;
-    doc.text(`Máximo que subió: ${fmt(m.up1Pct, 2)}%`, { width: innerW });
-    doc.text(`Máximo que bajó: ${fmt(m.down1Pct, 2)}%`, { width: innerW });
-    doc.text(`Wick bajo: $${fmt(m.wickLow, 2)} (${fmt(m.wickLowPct, 2)}%)`, { width: innerW });
-    doc.text(`Cierre vs entrada: ${fmt(m.closeDeltaPct, 2)}%`, { width: innerW });
-  }
+            if (s.moveNext) {
+              doc.moveDown(0.2);
+              doc.fillColor('#2E7D32').fontSize(9).text('📈 PRÓXIMA VELA:', { width: innerW });
+              doc.fillColor('#000').fontSize(8);
+              const m = s.moveNext;
+              doc.text(`Máximo que subió: ${fmt(m.up1Pct, 2)}%`, { width: innerW });
+              doc.text(`Máximo que bajó: ${fmt(m.down1Pct, 2)}%`, { width: innerW });
+              
+              // Wick de retroceso: mecha superior para LONG, mecha inferior para SHORT
+              if (s.side === 'LONG') {
+                doc.text(`Wick de retroceso: $${fmt(m.wickHigh, 2)} (${fmt(m.wickHighPct, 2)}%)`, { width: innerW });
+              } else {
+                doc.text(`Wick de retroceso: $${fmt(m.wickLow, 2)} (${fmt(m.wickLowPct, 2)}%)`, { width: innerW });
+              }
+              
+              doc.text(`Cierre vs entrada: ${fmt(m.closeDeltaPct, 2)}%`, { width: innerW });
+            }
 
   if (typeof s.slPct === 'number' || typeof s.tp1Pct === 'number' || typeof s.tp2Pct === 'number') {
     doc.moveDown(0.1);
@@ -264,6 +327,18 @@ function drawFullSignalPage(doc, signal, idx, previousCandles) {
     doc.text(`Mínimo: $${fmt(c.low, 2)}`);
     doc.text(`Cierre: $${fmt(c.close, 2)}`);
     doc.text(`Volumen: ${fmt(c.volume, 2)}`);
+    
+    // Wick de retroceso de la vela señal
+    if (signal.side === 'LONG') {
+      const wickHigh = Math.max(0, c.high - signal.entry);
+      const wickHighPct = (wickHigh / signal.entry) * 100;
+      doc.text(`Wick de retroceso: $${fmt(wickHigh, 2)} (${fmt(wickHighPct, 2)}%)`);
+    } else {
+      const wickLow = Math.max(0, signal.entry - c.low);
+      const wickLowPct = (wickLow / signal.entry) * 100;
+      doc.text(`Wick de retroceso: $${fmt(wickLow, 2)} (${fmt(wickLowPct, 2)}%)`);
+    }
+    
     doc.moveDown(0.3);
   }
 
@@ -275,7 +350,6 @@ function drawFullSignalPage(doc, signal, idx, previousCandles) {
     const m = signal.moveNext;
     doc.text(`Máximo que subió: ${fmt(m.up1Pct, 2)}%`);
     doc.text(`Máximo que bajó: ${fmt(m.down1Pct, 2)}%`);
-    doc.text(`Wick bajo: $${fmt(m.wickLow, 2)} (${fmt(m.wickLowPct, 2)}%)`);
     doc.text(`Cierre vs entrada: ${fmt(m.closeDeltaPct, 2)}%`);
     doc.moveDown(0.3);
   }

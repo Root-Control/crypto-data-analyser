@@ -141,7 +141,7 @@ function polishAndValidateStats(stats, emitted) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { symbol: 'ETHUSDT', timeframe: '15m', quantity: 1000, previousCandles: 500, regime: 'low', fromISO: '2025-10-12T20:00:00.000Z' };
+  const out = { symbol: 'ETHUSDT', timeframe: '15m', quantity: 3000, previousCandles: 500, regime: 'low', fromISO: undefined };
   for (let i = 0; i < args.length; i += 1) {
     const a = args[i];
     const v = args[i + 1];

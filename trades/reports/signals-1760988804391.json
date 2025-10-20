@@ -1,0 +1,335 @@
+{
+  "version": "v6.6.2",
+  "regime": "low",
+  "params": {
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "quantity": 3000,
+    "previousCandles": 500
+  },
+  "stats": {
+    "total": 5
+  },
+  "signals": [
+    {
+      "id": "ETHUSDT-1758501000000",
+      "dtISO": "2025-09-22T00:30:00.000Z",
+      "side": "SHORT",
+      "entry": 4359.01,
+      "sl": 4425.29,
+      "tp1": 4272.8460000000005,
+      "tp2": 4226.45,
+      "rr": 1.3,
+      "eventScore": 1,
+      "directionScore": 1,
+      "volumeRatio": 5.87,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1758501000000,
+        "openTimeISO": "2025-09-22T00:30:00.000Z",
+        "open": 4425.29,
+        "high": 4425.29,
+        "low": 4343.85,
+        "close": 4359.01,
+        "volume": 394976.169,
+        "closeTime": 1758501899999
+      },
+      "_candleIdx": 740,
+      "risk": {
+        "riskUSD": 60.82114975648117,
+        "gainUSD": 60.821149756482,
+        "rr": 1.0000000000000138
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 60.821149756482,
+        "takerFees": 4,
+        "makerFees": 1.6,
+        "slippage": 0.8,
+        "netTakerUSD": 56.021149756482004,
+        "netMakerUSD": 58.421149756482,
+        "roiTaker": 14.005287439120501,
+        "roiMaker": 14.6052874391205,
+        "minNetUsd": 56.021149756482004
+      },
+      "slPct": 1.5205287439120196,
+      "tp1Pct": 1.52052874391205,
+      "tp2Pct": 3.0410574878240793,
+      "moveNext": {
+        "up1Pct": 0.12021078180595553,
+        "down1Pct": 0.9320923787740819,
+        "wickLow": 40.63000000000011,
+        "wickLowPct": 0.9320923787740819,
+        "wickHigh": 5.239999999999782,
+        "wickHighPct": 0.12021078180595553,
+        "closeDeltaPct": -0.5863716761374808
+      },
+      "tp1Recalc": true,
+      "intervalFromPrevious": null,
+      "pacingInfo": "First signal"
+    },
+    {
+      "id": "ETHUSDT-1758519900000",
+      "dtISO": "2025-09-22T05:45:00.000Z",
+      "side": "SHORT",
+      "entry": 4217.7,
+      "sl": 4285,
+      "tp1": 4130.209999999999,
+      "tp2": 4083.1,
+      "rr": 1.3,
+      "eventScore": 1,
+      "directionScore": 1,
+      "volumeRatio": 1.37,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1758519900000,
+        "openTimeISO": "2025-09-22T05:45:00.000Z",
+        "open": 4278.21,
+        "high": 4285,
+        "low": 4210,
+        "close": 4217.7,
+        "volume": 91923.19,
+        "closeTime": 1758520799999
+      },
+      "_candleIdx": 761,
+      "risk": {
+        "riskUSD": 63.82625601631238,
+        "gainUSD": 63.82625601631238,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 63.82625601631238,
+        "takerFees": 4,
+        "makerFees": 1.6,
+        "slippage": 0.8,
+        "netTakerUSD": 59.02625601631238,
+        "netMakerUSD": 61.42625601631238,
+        "roiTaker": 14.756564004078095,
+        "roiMaker": 15.356564004078093,
+        "minNetUsd": 59.02625601631238
+      },
+      "slPct": 1.5956564004078189,
+      "tp1Pct": 1.5956564004078095,
+      "tp2Pct": 3.1913128008156084,
+      "moveNext": {
+        "up1Pct": 0.1657301372786064,
+        "down1Pct": 5.140716504255868,
+        "wickLow": 216.8199999999997,
+        "wickLowPct": 5.140716504255868,
+        "wickHigh": 6.989999999999782,
+        "wickHighPct": 0.1657301372786064,
+        "closeDeltaPct": -1.5449178462195001
+      },
+      "tp1Recalc": true,
+      "intervalFromPrevious": 315,
+      "pacingInfo": "315 minutes from previous"
+    },
+    {
+      "id": "ETHUSDT-1758686400000",
+      "dtISO": "2025-09-24T04:00:00.000Z",
+      "side": "SHORT",
+      "entry": 4097.81,
+      "sl": 4145.84,
+      "tp1": 4035.3710000000005,
+      "tp2": 4001.75,
+      "rr": 1.3,
+      "eventScore": 1,
+      "directionScore": 1,
+      "volumeRatio": 4.76,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1758686400000,
+        "openTimeISO": "2025-09-24T04:00:00.000Z",
+        "open": 4145.41,
+        "high": 4145.84,
+        "low": 4070,
+        "close": 4097.81,
+        "volume": 320367.367,
+        "closeTime": 1758687299999
+      },
+      "_candleIdx": 946,
+      "risk": {
+        "riskUSD": 46.8835792777115,
+        "gainUSD": 46.883579277711945,
+        "rr": 1.0000000000000095
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 46.883579277711945,
+        "takerFees": 4,
+        "makerFees": 1.6,
+        "slippage": 0.8,
+        "netTakerUSD": 42.08357927771195,
+        "netMakerUSD": 44.48357927771195,
+        "roiTaker": 10.520894819427987,
+        "roiMaker": 11.120894819427987,
+        "minNetUsd": 42.08357927771195
+      },
+      "slPct": 1.172089481942784,
+      "tp1Pct": 1.1720894819427987,
+      "tp2Pct": 2.3441789638855974,
+      "moveNext": {
+        "up1Pct": 0.7438119385720557,
+        "down1Pct": 0.1271410826758803,
+        "wickLow": 5.210000000000491,
+        "wickLowPct": 0.1271410826758803,
+        "wickHigh": 30.479999999999563,
+        "wickHighPct": 0.7438119385720557,
+        "closeDeltaPct": 0.6847560038166604
+      },
+      "tp1Recalc": true,
+      "intervalFromPrevious": 2775,
+      "pacingInfo": "2775 minutes from previous"
+    },
+    {
+      "id": "ETHUSDT-1758770100000",
+      "dtISO": "2025-09-25T03:15:00.000Z",
+      "side": "SHORT",
+      "entry": 4034.97,
+      "sl": 4089.56,
+      "tp1": 3964.0029999999997,
+      "tp2": 3925.79,
+      "rr": 1.3,
+      "eventScore": 1,
+      "directionScore": 1,
+      "volumeRatio": 3.29,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1758770100000,
+        "openTimeISO": "2025-09-25T03:15:00.000Z",
+        "open": 4086.57,
+        "high": 4089.56,
+        "low": 4030,
+        "close": 4034.97,
+        "volume": 221327.683,
+        "closeTime": 1758770999999
+      },
+      "_candleIdx": 1039,
+      "risk": {
+        "riskUSD": 54.11688314906941,
+        "gainUSD": 54.11688314906896,
+        "rr": 0.9999999999999917
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 54.116883149068954,
+        "takerFees": 4,
+        "makerFees": 1.6,
+        "slippage": 0.8,
+        "netTakerUSD": 49.31688314906896,
+        "netMakerUSD": 51.716883149068956,
+        "roiTaker": 12.32922078726724,
+        "roiMaker": 12.92922078726724,
+        "minNetUsd": 49.31688314906896
+      },
+      "slPct": 1.352922078726726,
+      "tp1Pct": 1.352922078726724,
+      "tp2Pct": 2.705844157453459,
+      "moveNext": {
+        "up1Pct": 0.49442746786222136,
+        "down1Pct": 0.37100647588457414,
+        "wickLow": 14.9699999999998,
+        "wickLowPct": 0.37100647588457414,
+        "wickHigh": 19.950000000000273,
+        "wickHighPct": 0.49442746786222136,
+        "closeDeltaPct": 0.2837691482216788
+      },
+      "tp1Recalc": true,
+      "intervalFromPrevious": 1395,
+      "pacingInfo": "1395 minutes from previous"
+    },
+    {
+      "id": "ETHUSDT-1758802500000",
+      "dtISO": "2025-09-25T12:15:00.000Z",
+      "side": "SHORT",
+      "entry": 3939.93,
+      "sl": 4009.8,
+      "tp1": 3849.0989999999993,
+      "tp2": 3800.19,
+      "rr": 1.3,
+      "eventScore": 1,
+      "directionScore": 1,
+      "volumeRatio": 2.59,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1758802500000,
+        "openTimeISO": "2025-09-25T12:15:00.000Z",
+        "open": 4009.27,
+        "high": 4009.8,
+        "low": 3911.39,
+        "close": 3939.93,
+        "volume": 174217.736,
+        "closeTime": 1758803399999
+      },
+      "_candleIdx": 1075,
+      "risk": {
+        "riskUSD": 70.93527042358656,
+        "gainUSD": 70.9352704235861,
+        "rr": 0.9999999999999934
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 70.93527042358609,
+        "takerFees": 4,
+        "makerFees": 1.6,
+        "slippage": 0.8,
+        "netTakerUSD": 66.13527042358609,
+        "netMakerUSD": 68.5352704235861,
+        "roiTaker": 16.533817605896523,
+        "roiMaker": 17.133817605896525,
+        "minNetUsd": 66.13527042358609
+      },
+      "slPct": 1.773381760589654,
+      "tp1Pct": 1.7733817605896522,
+      "tp2Pct": 3.5467635211793045,
+      "moveNext": {
+        "up1Pct": 1.6386077925242313,
+        "down1Pct": 0.3929003814788592,
+        "wickLow": 15.480000000000018,
+        "wickLowPct": 0.3929003814788592,
+        "wickHigh": 64.55999999999995,
+        "wickHighPct": 1.6386077925242313,
+        "closeDeltaPct": 1.3822580604223942
+      },
+      "tp1Recalc": true,
+      "intervalFromPrevious": 540,
+      "pacingInfo": "540 minutes from previous"
+    }
+  ]
+}
