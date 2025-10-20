@@ -63,7 +63,7 @@ function drawHeader(doc, title, info) {
   doc.moveDown(0.4);
 }
 
-function drawSignalCard(doc, idx, s, x, y, w) {
+function drawSignalCard(doc, idx, s, x, y, w, previousCandles = 500) {
   const startX = x;
   const startY = y;
   const pad = 6;
@@ -79,7 +79,7 @@ function drawSignalCard(doc, idx, s, x, y, w) {
   doc.save();
   doc.fillColor('#000');
   doc.fontSize(11);
-  doc.text(`SEÑAL #${idx + 1}`, innerX, innerY, { width: innerW });
+  doc.text(`SEÑAL #${idx + 1} (${previousCandles} prev)`, innerX, innerY, { width: innerW });
 
   const lima = formatTzFull(s.dtISO, 'America/Lima');
   const mexico = formatTzFull(s.dtISO, 'America/Mexico_City');
@@ -136,7 +136,7 @@ function drawSignalCard(doc, idx, s, x, y, w) {
   return startY + Math.max(cardH + pad, 60) + 6; // next y
 }
 
-function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'low', symbol = 'ETHUSDT', dateRange, outPath = path.join('trades', 'reports', 'signals.pdf') }) {
+function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'low', symbol = 'ETHUSDT', dateRange, previousCandles = 500, outPath = path.join('trades', 'reports', 'signals.pdf') }) {
   const titleWithRange = dateRange && dateRange.from && dateRange.to
     ? `${title} (${formatLimaDateOnly(dateRange.from)} - ${formatLimaDateOnly(dateRange.to)})`
     : title;
@@ -160,7 +160,7 @@ function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'lo
 
   signals.forEach((s, idx) => {
     const x = doc.page.margins.left + (col === 0 ? 0 : colW + gutter);
-    const nextY = drawSignalCard(doc, idx, s, x, yPos, colW);
+    const nextY = drawSignalCard(doc, idx, s, x, yPos, colW, previousCandles);
 
     if (col === 0) {
       // place next in right column at same y

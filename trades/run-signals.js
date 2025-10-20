@@ -584,7 +584,7 @@ async function main() {
 
   const pdfOut = path.join(reportsDir, 'signals.pdf');
   const dateRange = candles.length ? { from: candles[0].openTime, to: candles[candles.length - 1].openTime } : undefined;
-  await generatePdf({ signals: signalsWithPacing, regime, symbol, dateRange, outPath: pdfOut });
+  await generatePdf({ signals: signalsWithPacing, regime, symbol, dateRange, previousCandles, outPath: pdfOut });
 
   // EMIT_SUMMARY with real values
   console.log(`EMIT_SUMMARY v6.6.2 | emitted=${emitted} | picked=${picked} | postCluster=${postClusterCount} | clusterBypass=${clusterBypass} | dirAvgEmit=${dirScoreAvgEmitted?.toFixed(3)} | rrAvgEmit=${rrAvg?.toFixed(3)} | priceRadius=${priceRadiusFinal?.toFixed(3)} | pacing: minSpacing=${PACING_CONFIG.minSpacingBars}b, cooldownSide=${PACING_CONFIG.cooldownSideBars}b, max${PACING_CONFIG.maxSignals4h}/4h | removed: spacing=${pacingStats.removedByMinSpacing}, cooldown=${pacingStats.removedByCooldownSide}, rate4h=${pacingStats.removedByRateLimit4h}, reverseAfterSL=${pacingStats.blockedReverseAfterSL} | pdf=${pdfOut} | snapshot=${jsonOut}`);
