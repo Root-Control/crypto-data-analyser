@@ -303,14 +303,12 @@ function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'lo
   const stream = fs.createWriteStream(outPath);
   doc.pipe(stream);
 
-  // Página 1: Información general
+  // Página 1: Información general SOLO
   drawGeneralInfoPage(doc, signals, regime, symbol, dateRange, previousCandles, pacingStats);
 
-  // Páginas siguientes: Una señal por página
+  // Páginas siguientes: Una señal por página (SIEMPRE nueva página)
   signals.forEach((signal, idx) => {
-    if (idx > 0) {
-      doc.addPage();
-    }
+    doc.addPage(); // SIEMPRE agregar nueva página
     drawFullSignalPage(doc, signal, idx, previousCandles);
   });
 
