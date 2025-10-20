@@ -170,8 +170,8 @@ async function getData(symbol, quantity = 1000, fromISO = undefined, previousCan
 
     if (fromISO) {
       const anchoredStart = alignToIntervalStart(fromISO, timeframe);
-      start = anchoredStart - previousCandles * interval;
-      end = start + (need - 1) * interval;
+      end = anchoredStart; // El punto de referencia (fromISO)
+      start = anchoredStart - (need - 1) * interval; // Hacia atrás desde fromISO
     } else {
       if (cacheLEN >= need) {
         const tail = cached.slice(-need);
