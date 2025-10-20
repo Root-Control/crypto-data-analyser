@@ -1,0 +1,315 @@
+{
+  "version": "v6.6.2",
+  "regime": "low",
+  "params": {
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "quantity": 1000,
+    "previousCandles": 500
+  },
+  "stats": {
+    "total": 6
+  },
+  "signals": [
+    {
+      "id": "ETHUSDT-1760107500000",
+      "dtISO": "2025-10-10T14:45:00.000Z",
+      "side": "SHORT",
+      "entry": 4277.71,
+      "sl": 4331,
+      "tp1": 4224.42,
+      "tp2": 4171.13,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760107500000,
+        "openTimeISO": "2025-10-10T14:45:00.000Z",
+        "open": 4328.58,
+        "high": 4331,
+        "low": 4276.02,
+        "close": 4277.71,
+        "volume": 186140.417,
+        "closeTime": 1760108399999
+      },
+      "risk": {
+        "riskUSD": 49.83039991023231,
+        "gainUSD": 49.83039991023231,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 49.83039991023231,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 47.03039991023231,
+        "netMakerUSD": 48.230399910232315,
+        "roiTaker": 11.757599977558078,
+        "roiMaker": 12.057599977558079,
+        "minNetUsd": 47.03039991023231
+      },
+      "slPct": 1.2457599977558078,
+      "tp1Pct": 1.2457599977558078,
+      "tp2Pct": 2.4915199955116156
+    },
+    {
+      "id": "ETHUSDT-1760109300000",
+      "dtISO": "2025-10-10T15:15:00.000Z",
+      "side": "SHORT",
+      "entry": 4159.35,
+      "sl": 4265.77,
+      "tp1": 4052.93,
+      "tp2": 3946.51,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760109300000,
+        "openTimeISO": "2025-10-10T15:15:00.000Z",
+        "open": 4255.55,
+        "high": 4265.77,
+        "low": 4159.01,
+        "close": 4159.35,
+        "volume": 526543.463,
+        "closeTime": 1760110199999
+      },
+      "risk": {
+        "riskUSD": 102.34291415726021,
+        "gainUSD": 102.34291415726064,
+        "rr": 1.0000000000000042
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 102.34291415726064,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 99.54291415726064,
+        "netMakerUSD": 100.74291415726064,
+        "roiTaker": 24.88572853931516,
+        "roiMaker": 25.18572853931516,
+        "minNetUsd": 99.54291415726064
+      },
+      "slPct": 2.5585728539315054,
+      "tp1Pct": 2.558572853931516,
+      "tp2Pct": 5.117145707863011
+    },
+    {
+      "id": "ETHUSDT-1760123700000",
+      "dtISO": "2025-10-10T19:15:00.000Z",
+      "side": "SHORT",
+      "entry": 3951.2,
+      "sl": 4030.46,
+      "tp1": 3871.94,
+      "tp2": 3792.68,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760123700000,
+        "openTimeISO": "2025-10-10T19:15:00.000Z",
+        "open": 4029.13,
+        "high": 4030.46,
+        "low": 3950,
+        "close": 3951.2,
+        "volume": 371004.422,
+        "closeTime": 1760124599999
+      },
+      "risk": {
+        "riskUSD": 80.23891476007311,
+        "gainUSD": 80.23891476007265,
+        "rr": 0.9999999999999942
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 80.23891476007265,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 77.43891476007265,
+        "netMakerUSD": 78.63891476007265,
+        "roiTaker": 19.359728690018162,
+        "roiMaker": 19.659728690018163,
+        "minNetUsd": 77.43891476007265
+      },
+      "slPct": 2.0059728690018277,
+      "tp1Pct": 2.005972869001816,
+      "tp2Pct": 4.011945738003645
+    },
+    {
+      "id": "ETHUSDT-1760124600000",
+      "dtISO": "2025-10-10T19:30:00.000Z",
+      "side": "LONG",
+      "entry": 4024.23,
+      "sl": 3947.77,
+      "tp1": 4100.69,
+      "tp2": 4177.15,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760124600000,
+        "openTimeISO": "2025-10-10T19:30:00.000Z",
+        "open": 3951.11,
+        "high": 4026.61,
+        "low": 3947.77,
+        "close": 4024.23,
+        "volume": 291697.617,
+        "closeTime": 1760125499999
+      },
+      "risk": {
+        "riskUSD": 75.99963222778025,
+        "gainUSD": 75.99963222777981,
+        "rr": 0.999999999999994
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 75.99963222777981,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 73.19963222777982,
+        "netMakerUSD": 74.39963222777982,
+        "roiTaker": 18.299908056944954,
+        "roiMaker": 18.599908056944955,
+        "minNetUsd": 73.19963222777982
+      },
+      "slPct": 1.8999908056945063,
+      "tp1Pct": 1.8999908056944952,
+      "tp2Pct": 3.7999816113890015
+    },
+    {
+      "id": "ETHUSDT-1760129100000",
+      "dtISO": "2025-10-10T20:45:00.000Z",
+      "side": "SHORT",
+      "entry": 3864.76,
+      "sl": 4017.23,
+      "tp1": 3712.29,
+      "tp2": 3559.82,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760129100000,
+        "openTimeISO": "2025-10-10T20:45:00.000Z",
+        "open": 4014.01,
+        "high": 4017.23,
+        "low": 3831.55,
+        "close": 3864.76,
+        "volume": 800322.091,
+        "closeTime": 1760129999999
+      },
+      "risk": {
+        "riskUSD": 157.80540059408582,
+        "gainUSD": 157.80540059408628,
+        "rr": 1.0000000000000029
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 157.80540059408628,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 155.00540059408627,
+        "netMakerUSD": 156.20540059408626,
+        "roiTaker": 38.75135014852157,
+        "roiMaker": 39.051350148521564,
+        "minNetUsd": 155.00540059408627
+      },
+      "slPct": 3.9451350148521453,
+      "tp1Pct": 3.9451350148521573,
+      "tp2Pct": 7.890270029704303
+    },
+    {
+      "id": "ETHUSDT-1760131800000",
+      "dtISO": "2025-10-10T21:30:00.000Z",
+      "side": "LONG",
+      "entry": 3820.15,
+      "sl": 3594.44,
+      "tp1": 4045.86,
+      "tp2": 4271.57,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760131800000,
+        "openTimeISO": "2025-10-10T21:30:00.000Z",
+        "open": 3617.43,
+        "high": 3884.92,
+        "low": 3594.44,
+        "close": 3820.15,
+        "volume": 524740.737,
+        "closeTime": 1760132699999
+      },
+      "risk": {
+        "riskUSD": 236.33626951821265,
+        "gainUSD": 236.33626951821265,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 236.33626951821265,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 233.53626951821263,
+        "netMakerUSD": 234.73626951821262,
+        "roiTaker": 58.38406737955316,
+        "roiMaker": 58.68406737955315,
+        "minNetUsd": 233.53626951821263
+      },
+      "slPct": 5.908406737955317,
+      "tp1Pct": 5.908406737955317,
+      "tp2Pct": 11.816813475910621
+    }
+  ]
+}

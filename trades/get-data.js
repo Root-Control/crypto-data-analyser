@@ -1,543 +1,231 @@
-const redis = require('redis');
+const Redis = require('ioredis');
 const axios = require('axios');
-require('dotenv').config();
 
-class DataManager {
-  constructor() {
-    this.redisClient = null;
-    this.isConnected = false;
-  }
+const INTERVAL_MS = {
+  '1m': 60_000,
+  '3m': 3 * 60_000,
+  '5m': 5 * 60_000,
+  '15m': 15 * 60_000,
+  '30m': 30 * 60_000,
+  '1h': 60 * 60_000,
+  '2h': 2 * 60 * 60_000,
+  '4h': 4 * 60 * 60_000,
+  '1d': 24 * 60 * 60_000,
+};
 
-  /**
-   * Conecta a Redis
-   */
-  async connect() {
-    try {
-      console.log('🔌 Conectando a Redis...');
-      
-      this.redisClient = redis.createClient({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD || undefined,
-        db: process.env.REDIS_DB || 0,
-        retry_strategy: (options) => {
-          if (options.error && options.error.code === 'ECONNREFUSED') {
-            console.error('❌ Redis server refused connection');
-            return new Error('Redis server refused connection');
-          }
-          if (options.total_retry_time > 1000 * 60 * 60) {
-            console.error('❌ Redis retry time exhausted');
-            return new Error('Retry time exhausted');
-          }
-          if (options.attempt > 10) {
-            console.error('❌ Redis max retry attempts reached');
-            return undefined;
-          }
-          return Math.min(options.attempt * 100, 3000);
-        }
-      });
-
-      this.redisClient.on('connect', () => {
-        console.log('✅ Conectado a Redis');
-        this.isConnected = true;
-      });
-
-      this.redisClient.on('error', (err) => {
-        console.error('❌ Error de Redis:', err);
-        this.isConnected = false;
-      });
-
-      this.redisClient.on('end', () => {
-        console.log('🔌 Conexión a Redis cerrada');
-        this.isConnected = false;
-      });
-
-      await this.redisClient.connect();
-      
-    } catch (error) {
-      console.error('❌ Error al conectar a Redis:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Desconecta de Redis
-   */
-  async disconnect() {
-    if (this.redisClient && this.isConnected) {
-      try {
-        await this.redisClient.quit();
-        console.log('🔌 Desconectado de Redis');
-      } catch (error) {
-        console.error('❌ Error al desconectar de Redis:', error);
-      }
-    }
-  }
-
-  /**
-   * Verifica si Redis está conectado
-   */
-  isRedisConnected() {
-    return this.isConnected && this.redisClient;
-  }
-
-  /**
-   * Obtiene datos de Redis
-   */
-  async get(key) {
-    if (!this.isRedisConnected()) {
-      throw new Error('Redis no está conectado');
-    }
-    
-    try {
-      const data = await this.redisClient.get(key);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.error('❌ Error al obtener datos de Redis:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Guarda datos en Redis
-   */
-  async set(key, value, expireSeconds = null) {
-    if (!this.isRedisConnected()) {
-      throw new Error('Redis no está conectado');
-    }
-    
-    try {
-      const jsonValue = JSON.stringify(value);
-      if (expireSeconds) {
-        await this.redisClient.set(key, jsonValue, 'EX', expireSeconds);
-      } else {
-        await this.redisClient.set(key, jsonValue);
-      }
-      console.log(`💾 Datos guardados en Redis: ${key}`);
-    } catch (error) {
-      console.error('❌ Error al guardar datos en Redis:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Elimina datos de Redis
-   */
-  async del(key) {
-    if (!this.isRedisConnected()) {
-      throw new Error('Redis no está conectado');
-    }
-    
-    try {
-      await this.redisClient.del(key);
-      console.log(`🗑️ Datos eliminados de Redis: ${key}`);
-    } catch (error) {
-      console.error('❌ Error al eliminar datos de Redis:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene todas las claves que coincidan con un patrón
-   */
-  async keys(pattern = '*') {
-    if (!this.isRedisConnected()) {
-      throw new Error('Redis no está conectado');
-    }
-    
-    try {
-      return await this.redisClient.keys(pattern);
-    } catch (error) {
-      console.error('❌ Error al obtener claves de Redis:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene información del estado de Redis
-   */
-  async getInfo() {
-    if (!this.isRedisConnected()) {
-      throw new Error('Redis no está conectado');
-    }
-    
-    try {
-      const info = await this.redisClient.info();
-      return info;
-    } catch (error) {
-      console.error('❌ Error al obtener información de Redis:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene el número de velas almacenadas
-   */
-  async getCandleCount() {
-    try {
-      const keys = await this.keys('candle:*');
-      return keys.length;
-    } catch (error) {
-      console.error('❌ Error al contar velas:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Obtiene las últimas N velas
-   */
-  async getLastCandles(count = 10) {
-    try {
-      const keys = await this.keys('candle:*');
-      const sortedKeys = keys.sort((a, b) => {
-        const aIndex = parseInt(a.split(':')[1]);
-        const bIndex = parseInt(b.split(':')[1]);
-        return bIndex - aIndex; // Orden descendente (más recientes primero)
-      });
-      
-      const lastKeys = sortedKeys.slice(0, count);
-      const candles = [];
-      
-      for (const key of lastKeys) {
-        const candle = await this.get(key);
-        if (candle) {
-          candles.push(candle);
-        }
-      }
-      
-      return candles;
-    } catch (error) {
-      console.error('❌ Error al obtener últimas velas:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Obtiene todas las velas almacenadas
-   */
-  async getAllCandles() {
-    try {
-      const keys = await this.keys('candle:*');
-      const sortedKeys = keys.sort((a, b) => {
-        const aIndex = parseInt(a.split(':')[1]);
-        const bIndex = parseInt(b.split(':')[1]);
-        return aIndex - bIndex; // Orden ascendente (más antiguas primero)
-      });
-      
-      const candles = [];
-      
-      for (const key of sortedKeys) {
-        const candle = await this.get(key);
-        if (candle) {
-          candles.push(candle);
-        }
-      }
-      
-      return candles;
-    } catch (error) {
-      console.error('❌ Error al obtener todas las velas:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Obtiene velas en un rango específico
-   */
-  async getCandlesInRange(startIndex, endIndex) {
-    try {
-      const keys = await this.keys('candle:*');
-      const candles = [];
-      
-      for (let i = startIndex; i <= endIndex; i++) {
-        const key = `candle:${i}`;
-        if (keys.includes(key)) {
-          const candle = await this.get(key);
-          if (candle) {
-            candles.push(candle);
-          }
-        }
-      }
-      
-      return candles;
-    } catch (error) {
-      console.error('❌ Error al obtener velas en rango:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca velas por timestamp
-   */
-  async getCandlesByTimestamp(startTime, endTime) {
-    try {
-      const allCandles = await this.getAllCandles();
-      return allCandles.filter(candle => {
-        const candleTime = new Date(candle.timestamp).getTime();
-        return candleTime >= startTime && candleTime <= endTime;
-      });
-    } catch (error) {
-      console.error('❌ Error al buscar velas por timestamp:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Obtiene velas de ETH/USDT desde Redis o API de Binance
-   * @param {string} symbol - Símbolo del par (default: ETHUSDT)
-   * @param {string} interval - Intervalo de tiempo (default: 1m)
-   * @param {number} limit - Número de velas a obtener (default: 1000)
-   * @param {boolean} use100K - Flag para usar 100K velas (default: false)
-   * @returns {Array} Array de velas
-   */
-  async getCandles(symbol = 'ETHUSDT', interval = '1m', limit = 1000, use100K = false, forceRefresh = false, startTime = null, endTime = null) {
-    // Si use100K es true, usar la key de 100K velas
-    if (use100K) {
-      console.log('🚀 Modo 100K activado - usando datos históricos permanentes');
-      return await this.get100KCandles();
-    }
-    
-    const cacheKey = `${symbol}_${interval.toUpperCase()}_${limit}_CANDLES`;
-    
-    try {
-      // Si forceRefresh es true, saltar la verificación de Redis
-      if (!forceRefresh) {
-        // Primero verificar si hay datos en Redis
-        console.log(`🔍 Verificando datos en Redis para ${cacheKey}...`);
-        const cachedData = await this.get(cacheKey);
-        
-        if (cachedData && cachedData.length > 0) {
-          console.log(`✅ Datos encontrados en Redis: ${cachedData.length} velas`);
-          return cachedData;
-        }
-      } else {
-        console.log(`🔄 ForceRefresh activado - saltando caché de Redis para ${cacheKey}...`);
-      }
-      
-      // Si no hay datos en Redis, obtener de la API de Binance
-      console.log(`📡 Obteniendo datos de la API de Binance para ${symbol}...`);
-      if (startTime && endTime) {
-        console.log(`📅 Rango de fechas: ${new Date(startTime).toISOString()} - ${new Date(endTime).toISOString()}`);
-      }
-      const apiData = await this.fetchCandlesFromBinance(symbol, interval, limit, startTime, endTime);
-      
-      if (apiData && apiData.length > 0) {
-        // Guardar en Redis para futuras consultas
-        console.log(`💾 Guardando ${apiData.length} velas en Redis...`);
-        await this.set(cacheKey, apiData, 3600); // Expira en 1 hora
-        
-        // También guardar individualmente para compatibilidad con el sistema existente
-        for (let i = 0; i < apiData.length; i++) {
-          await this.set(`candle:${i}`, apiData[i]);
-        }
-        
-        console.log(`✅ ${apiData.length} velas guardadas en Redis`);
-        return apiData;
-      } else {
-        console.log('❌ No se pudieron obtener datos de la API');
-        return [];
-      }
-      
-    } catch (error) {
-      console.error('❌ Error en getCandles:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Obtiene velas desde la API de Binance Futures
-   * @param {string} symbol - Símbolo del par
-   * @param {string} interval - Intervalo de tiempo
-   * @param {number} limit - Número de velas
-   * @returns {Array} Array de velas formateadas
-   */
-  async fetchCandlesFromBinance(symbol, interval, limit, startTime = null, endTime = null) {
-    try {
-      const baseUrl = 'https://fapi.binance.com';
-      const endpoint = '/fapi/v1/klines';
-      
-      const params = {
-        symbol: symbol,
-        interval: interval,
-        limit: limit
-      };
-      
-      // Añadir parámetros de fecha si se proporcionan
-      if (startTime) {
-        params.startTime = startTime;
-      }
-      if (endTime) {
-        params.endTime = endTime;
-      }
-      
-      console.log(`🌐 Llamando a Binance API: ${baseUrl}${endpoint}`);
-      console.log(`📊 Parámetros:`, params);
-      
-      const response = await axios.get(`${baseUrl}${endpoint}`, { params });
-      
-      if (response.status === 200 && response.data) {
-        console.log(`📈 Respuesta recibida: ${response.data.length} velas`);
-        
-        // Formatear las velas al formato esperado
-        const formattedCandles = response.data.map((candle, index) => ({
-          index: index,
-          timestamp: new Date(candle[0]).toISOString(),
-          open: parseFloat(candle[1]),
-          high: parseFloat(candle[2]),
-          low: parseFloat(candle[3]),
-          close: parseFloat(candle[4]),
-          volume: parseFloat(candle[5]),
-          closeTime: new Date(candle[6]).toISOString(),
-          quoteAssetVolume: parseFloat(candle[7]),
-          numberOfTrades: parseInt(candle[8]),
-          takerBuyBaseAssetVolume: parseFloat(candle[9]),
-          takerBuyQuoteAssetVolume: parseFloat(candle[10])
-        }));
-        
-        return formattedCandles;
-      } else {
-        throw new Error(`API response error: ${response.status}`);
-      }
-      
-    } catch (error) {
-      console.error('❌ Error al obtener datos de Binance:', error.message);
-      if (error.response) {
-        console.error('📊 Respuesta de error:', error.response.data);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene 100K velas desde la key histórica permanente
-   * @returns {Array} Array de 100K velas
-   */
-  async get100KCandles() {
-    try {
-      console.log('🔍 Obteniendo 100K velas desde ETHUSD_HISTORICAL_CANDLES_PERMANENT...');
-      
-      // Intentar obtener desde Redis
-      const redisData = await this.get('ETHUSD_HISTORICAL_CANDLES_PERMANENT');
-      
-      if (redisData && typeof redisData === 'string') {
-        console.log('✅ Datos encontrados en Redis');
-        const candles = JSON.parse(redisData);
-        console.log(`📊 Cargadas ${candles.length} velas desde Redis`);
-        return candles.slice(0, 100000); // Asegurar máximo 100K
-      } else if (redisData && Array.isArray(redisData)) {
-        console.log('✅ Datos encontrados en Redis (ya parseados)');
-        console.log(`📊 Cargadas ${redisData.length} velas desde Redis`);
-        return redisData.slice(0, 100000); // Asegurar máximo 100K
-      } else {
-        console.log('❌ No se encontraron datos en Redis para la key temporal');
-        console.log('💡 Usando datos de 1000 velas como fallback');
-        return await this.getCandles('ETHUSDT', '15m', 1000, false);
-      }
-    } catch (error) {
-      console.error('❌ Error obteniendo 100K velas:', error);
-      console.log('💡 Usando datos de 1000 velas como fallback');
-      return await this.getCandles('ETHUSDT', '15m', 1000, false);
-    }
-  }
-
-  /**
-   * Limpia la caché de velas
-   */
-  async clearCandlesCache() {
-    try {
-      const keys = await this.keys('*_CANDLES');
-      for (const key of keys) {
-        await this.del(key);
-      }
-      console.log(`🗑️ Caché de velas limpiada: ${keys.length} claves eliminadas`);
-    } catch (error) {
-      console.error('❌ Error al limpiar caché:', error);
-    }
-  }
+function alignToIntervalStart(dateOrIso, timeframe) {
+  const ms = typeof dateOrIso === 'string' ? Date.parse(dateOrIso) : dateOrIso;
+  const interval = INTERVAL_MS[timeframe];
+  if (!interval) throw new Error(`Unsupported timeframe: ${timeframe}`);
+  return Math.floor(ms / interval) * interval;
 }
 
-// Función principal para probar la conexión
-async function main() {
-  const dataManager = new DataManager();
-  
+function toISO(ms) {
+  return new Date(ms).toISOString();
+}
+
+function toCandle(kline) {
+  const [openTime, open, high, low, close, volume, closeTime] = [
+    Number(kline[0]),
+    Number(kline[1]),
+    Number(kline[2]),
+    Number(kline[3]),
+    Number(kline[4]),
+    Number(kline[5]),
+    Number(kline[6]),
+  ];
+  return {
+    openTime,
+    openTimeISO: toISO(openTime),
+    open,
+    high,
+    low,
+    close,
+    volume,
+    closeTime: Number(closeTime),
+  };
+}
+
+function dedupeAndSort(candles) {
+  const map = new Map();
+  for (const c of candles) {
+    map.set(c.openTime, c);
+  }
+  return Array.from(map.values()).sort((a, b) => a.openTime - b.openTime);
+}
+
+async function fetchBinance(symbol, timeframe, params) {
+  const url = 'https://fapi.binance.com/fapi/v1/continuousKlines';
+  // Use Perpetual CONTRACT_TYPE=PERPETUAL; alternatively /klines for spot
+  const query = new URLSearchParams({
+    pair: symbol,
+    contractType: 'PERPETUAL',
+    interval: timeframe,
+    limit: String(params.limit ?? 1000),
+  });
+  if (params.startTime) query.set('startTime', String(params.startTime));
+  if (params.endTime) query.set('endTime', String(params.endTime));
+  const { data } = await axios.get(`${url}?${query.toString()}`, { timeout: 15_000 });
+  return data.map(toCandle);
+}
+
+function keys(symbol, timeframe) {
+  const base = `${symbol}:${timeframe}`;
+  return {
+    DATA: `${base}:DATA`,
+    LEN: `${base}:LEN`,
+    FROM: `${base}:FROM`,
+  };
+}
+
+async function loadCache(redis, k) {
+  const [dataRaw, lenRaw, fromIso] = await redis.mget(k.DATA, k.LEN, k.FROM);
+  if (!dataRaw || !lenRaw || !fromIso) return { candles: [], len: 0, fromIso: undefined };
   try {
-    // Conectar a Redis
-    await dataManager.connect();
-    
-    // Esperar un poco para que se establezca la conexión
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Verificar conexión
-    if (dataManager.isRedisConnected()) {
-      console.log('🎉 ¡Conexión a Redis exitosa!');
-      
-      // Probar la función getCandles con 1000 velas (modo normal)
-      console.log('\n🧪 Probando función getCandles (1000 velas)...');
-      const candles = await dataManager.getCandles('ETHUSDT', '15m', 1000, false);
-      
-      if (candles.length > 0) {
-        console.log(`✅ Obtenidas ${candles.length} velas de ETH/USDT (modo normal)`);
-        console.log('📋 Ejemplo de vela:');
-        console.log(JSON.stringify(candles[0], null, 2));
-        
-        // Mostrar estadísticas básicas
-        const prices = candles.map(c => c.close);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-        
-        console.log('\n📊 Estadísticas de precios (1000 velas):');
-        console.log(`- Precio mínimo: $${minPrice.toFixed(2)}`);
-        console.log(`- Precio máximo: $${maxPrice.toFixed(2)}`);
-        console.log(`- Precio promedio: $${avgPrice.toFixed(2)}`);
-        console.log(`- Rango: $${(maxPrice - minPrice).toFixed(2)}`);
-        
-      } else {
-        console.log('❌ No se pudieron obtener velas (modo normal)');
-      }
-      
-      // Probar la función getCandles con 100K velas (modo 100K)
-      console.log('\n🧪 Probando función getCandles (100K velas)...');
-      const candles100K = await dataManager.getCandles('ETHUSDT', '15m', 1000, true);
-      
-      if (candles100K.length > 0) {
-        console.log(`✅ Obtenidas ${candles100K.length} velas de ETH/USDT (modo 100K)`);
-        
-        // Mostrar estadísticas básicas
-        const prices100K = candles100K.map(c => c.close);
-        const minPrice100K = Math.min(...prices100K);
-        const maxPrice100K = Math.max(...prices100K);
-        const avgPrice100K = prices100K.reduce((a, b) => a + b, 0) / prices100K.length;
-        
-        console.log('\n📊 Estadísticas de precios (100K velas):');
-        console.log(`- Precio mínimo: $${minPrice100K.toFixed(2)}`);
-        console.log(`- Precio máximo: $${maxPrice100K.toFixed(2)}`);
-        console.log(`- Precio promedio: $${avgPrice100K.toFixed(2)}`);
-        console.log(`- Rango: $${(maxPrice100K - minPrice100K).toFixed(2)}`);
-        
-      } else {
-        console.log('❌ No se pudieron obtener velas (modo 100K)');
-      }
-      
-      // Obtener información básica de Redis
-      const candleCount = await dataManager.getCandleCount();
-      console.log(`\n📊 Total de velas en Redis: ${candleCount}`);
-      
-    } else {
-      console.log('❌ No se pudo conectar a Redis');
-    }
-    
-  } catch (error) {
-    console.error('❌ Error en main:', error);
-  } finally {
-    // Desconectar
-    await dataManager.disconnect();
+    const candles = JSON.parse(dataRaw);
+    return { candles, len: Number(lenRaw) || candles.length, fromIso };
+  } catch {
+    return { candles: [], len: 0, fromIso: undefined };
   }
 }
 
-// Exportar la clase
-module.exports = DataManager;
-
-// Si se ejecuta directamente, correr main()
-if (require.main === module) {
-  main().catch(console.error);
+async function persistCache(redis, k, candles) {
+  const sorted = dedupeAndSort(candles);
+  const len = sorted.length;
+  const fromIso = len > 0 ? sorted[0].openTimeISO : undefined;
+  await redis.multi()
+    .set(k.DATA, JSON.stringify(sorted))
+    .set(k.LEN, String(len))
+    .set(k.FROM, fromIso ?? '')
+    .exec();
+  return { candles: sorted, len, fromIso };
 }
+
+async function backfill(symbol, timeframe, have, needRangeStart, needRangeEnd) {
+  const interval = INTERVAL_MS[timeframe];
+  const result = [...have];
+  const haveMin = have.length ? have[0].openTime : Infinity;
+  const haveMax = have.length ? have[have.length - 1].openTime : -Infinity;
+
+  let binanceCalls = 0;
+  const chunks = [];
+
+  // Backfill backwards if needed
+  if (needRangeStart < haveMin) {
+    let endTime = have.length ? haveMin - interval : needRangeEnd; // when empty, start from desired end
+    while (endTime >= needRangeStart - 1000) {
+      const block = await fetchBinance(symbol, timeframe, { endTime, limit: 1000 });
+      binanceCalls += 1;
+      if (!block.length) break; // exhausted history
+      chunks.push({ dir: 'back', from: block[0].openTime, to: block[block.length - 1].openTime, n: block.length });
+      for (const c of block) result.push(c);
+      endTime = block[0].openTime - interval;
+      if (block[0].openTime <= needRangeStart) break;
+    }
+  }
+
+  // Backfill forwards if needed
+  const ensureHaveMax = () => (result.length ? dedupeAndSort(result)[result.length - 1].openTime : haveMax);
+  if (needRangeEnd > ensureHaveMax()) {
+    let startTime = ensureHaveMax() + interval;
+    while (startTime <= needRangeEnd + 1000) {
+      const block = await fetchBinance(symbol, timeframe, { startTime, limit: 1000 });
+      binanceCalls += 1;
+      if (!block.length) break; // no more data
+      chunks.push({ dir: 'fwd', from: block[0].openTime, to: block[block.length - 1].openTime, n: block.length });
+      for (const c of block) result.push(c);
+      startTime = block[block.length - 1].openTime + interval;
+      if (block[block.length - 1].openTime >= needRangeEnd) break;
+    }
+  }
+
+  return { candles: dedupeAndSort(result), binanceCalls, chunks };
+}
+
+async function getData(symbol, quantity = 1000, fromISO = undefined, previousCandles = 0, timeframe = '15m', redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379') {
+  const redis = new Redis(redisUrl);
+  try {
+    const need = quantity + previousCandles;
+    const k = keys(symbol, timeframe);
+
+    let cached = [];
+    let cacheLEN = 0;
+    let cacheFROM;
+    try {
+      const load = await loadCache(redis, k);
+      cached = load.candles;
+      cacheLEN = load.len;
+      cacheFROM = load.fromIso;
+    } catch (_) {
+      cached = [];
+      cacheLEN = 0;
+      cacheFROM = undefined;
+    }
+
+    const interval = INTERVAL_MS[timeframe];
+    if (!interval) throw new Error(`Unsupported timeframe: ${timeframe}`);
+
+    let start;
+    let end;
+
+    if (fromISO) {
+      const anchoredStart = alignToIntervalStart(fromISO, timeframe);
+      start = anchoredStart - previousCandles * interval;
+      end = start + (need - 1) * interval;
+    } else {
+      if (cacheLEN >= need) {
+        const tail = cached.slice(-need);
+        return tail;
+      }
+      const have = cached;
+      const haveMax = have.length ? have[have.length - 1].openTime : Date.now();
+      end = alignToIntervalStart(haveMax, timeframe);
+      start = end - (need - 1) * interval;
+    }
+
+    const have = cached;
+    const haveMin = have.length ? have[0].openTime : Infinity;
+    const haveMax = have.length ? have[have.length - 1].openTime : -Infinity;
+
+    let merged = have;
+    let binanceCalls = 0;
+    let chunks = [];
+
+    const coversCompletely = haveMin <= start && haveMax >= end;
+    if (!coversCompletely) {
+      const backfilled = await backfill(symbol, timeframe, have, start, end);
+      merged = backfilled.candles;
+      binanceCalls = backfilled.binanceCalls;
+      chunks = backfilled.chunks;
+      try {
+        await persistCache(redis, k, merged);
+      } catch (_) {
+        // ignore cache persist errors
+      }
+    }
+
+    const sorted = dedupeAndSort(merged);
+    let windowCandles;
+    if (fromISO) {
+      const byTime = new Map(sorted.map((c, idx) => [c.openTime, idx]));
+      const startIdx = byTime.get(start);
+      const endIdx = byTime.get(end);
+      if (startIdx !== undefined && endIdx !== undefined) {
+        windowCandles = sorted.slice(startIdx, endIdx + 1);
+      } else {
+        windowCandles = sorted.filter(c => c.openTime >= start && c.openTime <= end);
+      }
+    } else {
+      windowCandles = sorted.slice(-need);
+    }
+
+    console.log('[getData] params', { symbol, timeframe, quantity, previousCandles, fromISO });
+    console.log('[getData] metrics', { need, cacheLEN, cacheFROM, binanceCalls, chunks });
+
+    return windowCandles;
+  } finally {
+    try { redis.disconnect(); } catch (_) {}
+  }
+}
+
+module.exports = { getData };

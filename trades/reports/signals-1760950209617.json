@@ -1,0 +1,315 @@
+{
+  "version": "v6.6.2",
+  "regime": "low",
+  "params": {
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "quantity": 1000,
+    "previousCandles": 500
+  },
+  "stats": {
+    "total": 6
+  },
+  "signals": [
+    {
+      "id": "BTCUSDT-1760129100000",
+      "dtISO": "2025-10-10T20:45:00.000Z",
+      "side": "SHORT",
+      "entry": 114198,
+      "sl": 117040.3,
+      "tp1": 111355.7,
+      "tp2": 108513.4,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760129100000,
+        "openTimeISO": "2025-10-10T20:45:00.000Z",
+        "open": 116970.1,
+        "high": 117040.3,
+        "low": 112786.6,
+        "close": 114198,
+        "volume": 26562.594,
+        "closeTime": 1760129999999
+      },
+      "risk": {
+        "riskUSD": 99.55690992837013,
+        "gainUSD": 99.55690992837013,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 99.55690992837013,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 96.75690992837013,
+        "netMakerUSD": 97.95690992837014,
+        "roiTaker": 24.189227482092534,
+        "roiMaker": 24.489227482092534,
+        "minNetUsd": 96.75690992837013
+      },
+      "slPct": 2.4889227482092533,
+      "tp1Pct": 2.4889227482092533,
+      "tp2Pct": 4.977845496418507
+    },
+    {
+      "id": "BTCUSDT-1760131800000",
+      "dtISO": "2025-10-10T21:30:00.000Z",
+      "side": "LONG",
+      "entry": 111243.1,
+      "sl": 108668.3,
+      "tp1": 113817.9,
+      "tp2": 116392.7,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760131800000,
+        "openTimeISO": "2025-10-10T21:30:00.000Z",
+        "open": 109183,
+        "high": 112387.3,
+        "low": 108668.3,
+        "close": 111243.1,
+        "volume": 18205.499,
+        "closeTime": 1760132699999
+      },
+      "risk": {
+        "riskUSD": 92.58282086709208,
+        "gainUSD": 92.58282086709156,
+        "rr": 0.9999999999999943
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 92.58282086709156,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 89.78282086709156,
+        "netMakerUSD": 90.98282086709156,
+        "roiTaker": 22.44570521677289,
+        "roiMaker": 22.74570521677289,
+        "minNetUsd": 89.78282086709156
+      },
+      "slPct": 2.314570521677302,
+      "tp1Pct": 2.314570521677289,
+      "tp2Pct": 4.629141043354592
+    },
+    {
+      "id": "BTCUSDT-1760132700000",
+      "dtISO": "2025-10-10T21:45:00.000Z",
+      "side": "LONG",
+      "entry": 113253.6,
+      "sl": 111233.6,
+      "tp1": 115273.6,
+      "tp2": 117293.6,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760132700000,
+        "openTimeISO": "2025-10-10T21:45:00.000Z",
+        "open": 111243,
+        "high": 113757,
+        "low": 111233.6,
+        "close": 113253.6,
+        "volume": 16147.762,
+        "closeTime": 1760133599999
+      },
+      "risk": {
+        "riskUSD": 71.34431046783502,
+        "gainUSD": 71.34431046783502,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 71.34431046783502,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 68.54431046783502,
+        "netMakerUSD": 69.74431046783502,
+        "roiTaker": 17.136077616958755,
+        "roiMaker": 17.436077616958755,
+        "minNetUsd": 68.54431046783502
+      },
+      "slPct": 1.7836077616958754,
+      "tp1Pct": 1.7836077616958754,
+      "tp2Pct": 3.567215523391751
+    },
+    {
+      "id": "BTCUSDT-1760134500000",
+      "dtISO": "2025-10-10T22:15:00.000Z",
+      "side": "SHORT",
+      "entry": 112329.3,
+      "sl": 113750,
+      "tp1": 110908.6,
+      "tp2": 109487.9,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760134500000,
+        "openTimeISO": "2025-10-10T22:15:00.000Z",
+        "open": 113639.6,
+        "high": 113750,
+        "low": 112037.9,
+        "close": 112329.3,
+        "volume": 8416.486,
+        "closeTime": 1760135399999
+      },
+      "risk": {
+        "riskUSD": 50.59054049121635,
+        "gainUSD": 50.59054049121635,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 50.59054049121635,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 47.790540491216355,
+        "netMakerUSD": 48.99054049121636,
+        "roiTaker": 11.947635122804089,
+        "roiMaker": 12.24763512280409,
+        "minNetUsd": 47.790540491216355
+      },
+      "slPct": 1.2647635122804086,
+      "tp1Pct": 1.2647635122804086,
+      "tp2Pct": 2.52952702456083
+    },
+    {
+      "id": "BTCUSDT-1760139900000",
+      "dtISO": "2025-10-10T23:45:00.000Z",
+      "side": "SHORT",
+      "entry": 112714.9,
+      "sl": 114567,
+      "tp1": 110862.8,
+      "tp2": 109010.7,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760139900000,
+        "openTimeISO": "2025-10-10T23:45:00.000Z",
+        "open": 114552.2,
+        "high": 114567,
+        "low": 112688,
+        "close": 112714.9,
+        "volume": 6222.222,
+        "closeTime": 1760140799999
+      },
+      "risk": {
+        "riskUSD": 65.7268914757501,
+        "gainUSD": 65.72689147574957,
+        "rr": 0.9999999999999921
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 65.72689147574957,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 62.92689147574957,
+        "netMakerUSD": 64.12689147574957,
+        "roiTaker": 15.731722868937393,
+        "roiMaker": 16.031722868937393,
+        "minNetUsd": 62.92689147574957
+      },
+      "slPct": 1.6431722868937522,
+      "tp1Pct": 1.6431722868937393,
+      "tp2Pct": 3.286344573787491
+    },
+    {
+      "id": "BTCUSDT-1760470200000",
+      "dtISO": "2025-10-14T19:30:00.000Z",
+      "side": "SHORT",
+      "entry": 112063.8,
+      "sl": 113360.8,
+      "tp1": 110766.8,
+      "tp2": 109469.8,
+      "rr": 1,
+      "eventScore": 1,
+      "directionScore": 1,
+      "votes": {
+        "momentum": 1,
+        "book": 0.3,
+        "flow": 0.2,
+        "vwap": 0.1
+      },
+      "targetsSource": "atr",
+      "flags": [],
+      "candle": {
+        "openTime": 1760470200000,
+        "openTimeISO": "2025-10-14T19:30:00.000Z",
+        "open": 113287.1,
+        "high": 113360.8,
+        "low": 111952,
+        "close": 112063.8,
+        "volume": 6409.656,
+        "closeTime": 1760471099999
+      },
+      "risk": {
+        "riskUSD": 46.2950569229314,
+        "gainUSD": 46.2950569229314,
+        "rr": 1
+      },
+      "fees": {
+        "positionUSD": 4000,
+        "grossUSD": 46.2950569229314,
+        "takerFees": 2,
+        "makerFees": 0.8,
+        "slippage": 0.8,
+        "netTakerUSD": 43.495056922931404,
+        "netMakerUSD": 44.69505692293141,
+        "roiTaker": 10.873764230732851,
+        "roiMaker": 11.173764230732852,
+        "minNetUsd": 43.495056922931404
+      },
+      "slPct": 1.157376423073285,
+      "tp1Pct": 1.157376423073285,
+      "tp2Pct": 2.31475284614657
+    }
+  ]
+}
