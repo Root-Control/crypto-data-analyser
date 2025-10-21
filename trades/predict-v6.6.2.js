@@ -27,6 +27,32 @@ function computeATR(candles, period = 14) {
   return atr;
 }
 
+function verifyCandleIntervals(candles, timeframe = '15m') {
+  console.log(`[verifyCandleIntervals] Verificando intervalos de ${timeframe} en ${candles.length} velas...`);
+  
+  let gapsFound = 0;
+  const expectedInterval = 15 * 60; // 15 minutos en segundos
+  
+  for (let i = 1; i < candles.length; i++) {
+    const prev = candles[i - 1];
+    const curr = candles[i];
+    const intervalSeconds = (curr.openTime - prev.openTime) / 1000;
+    
+    if (intervalSeconds !== expectedInterval) {
+      gapsFound++;
+      console.log(`[verifyCandleIntervals] ⚠️ GAP #${gapsFound} en índice ${i}: ${intervalSeconds}s (esperado: ${expectedInterval}s)`);
+    }
+  }
+  
+  if (gapsFound === 0) {
+    console.log(`[verifyCandleIntervals] ✅ Intervalos perfectos: ${candles.length} velas con 15min exactos`);
+  } else {
+    console.log(`[verifyCandleIntervals] ⚠️ Encontrados ${gapsFound} gaps en ${candles.length} velas`);
+  }
+  
+  return gapsFound === 0;
+}
+
 function buildSignal(idBase, candle, side, entry, sl, tp1, tp2, rr, eventScore, directionScore, votes, volumeRatio, tp1Pct = null, slPct = null) {
   // 🚨 FIX: Calcular porcentajes correctos si no se proporcionan
   const tp1PctFinal = tp1Pct !== null ? tp1Pct : 
@@ -56,15 +82,19 @@ function buildSignal(idBase, candle, side, entry, sl, tp1, tp2, rr, eventScore, 
 }
 
 async function predictV662({ symbol, quantity = 1000, fromISO, previousCandles = 500, timeframe = '15m', regime = 'low', maxSignalsPer1000 = 6 }) {
-  const candles = await getData(symbol, quantity, fromISO, previousCandles, timeframe);
+  // 🚨 STEP 1: getData ya no llamará a previousCandles jamás, solo obtendrá la cantidad exacta
+  const candles = await getData(symbol, quantity, fromISO, 0, timeframe);
   if (!candles.length) return [];
+
+  // 🚨 STEP 2: Verificar intervalos de velas usando helper
+  verifyCandleIntervals(candles, timeframe);
 
   const allSignals = [];
 
   // Si quantity > 1000, dividir en chunks de 1000 velas
   if (quantity > 1000) {
     const chunkSize = 1000;
-    const numChunks = Math.ceil(quantity / chunkSize); // 🚨 FIX: Usar Math.ceil para incluir todas las velas
+    const numChunks = Math.ceil(quantity / chunkSize);
     
     console.log(`[predictV662] Dividiendo ${quantity} velas en ${numChunks} chunks de ${chunkSize} velas cada uno`);
     
@@ -72,18 +102,34 @@ async function predictV662({ symbol, quantity = 1000, fromISO, previousCandles =
       const startIdx = chunk * chunkSize;
       const endIdx = Math.min(startIdx + chunkSize, candles.length);
       
-      // 🚨 FIX: Cada chunk debe usar las 500 velas anteriores como contexto
-      const chunkStartIdx = Math.max(0, startIdx - previousCandles);
-      const chunkEndIdx = endIdx;
-      const chunkCandles = candles.slice(chunkStartIdx, chunkEndIdx);
+      // Obtener chunk actual
+      const chunkCandles = candles.slice(startIdx, endIdx);
+      console.log(`[predictV662] Chunk ${chunk + 1}: ${chunkCandles.length} velas (${startIdx}-${endIdx-1})`);
       
-      console.log(`[predictV662] Procesando chunk ${chunk + 1}/${numChunks}: velas ${startIdx}-${endIdx-1} (con contexto ${chunkStartIdx}-${chunkEndIdx-1})`);
-      console.log(`[predictV662] Chunk ${chunk + 1} tiene ${chunkCandles.length} velas totales`);
-      
-      // 🚨 FIX: Cada chunk debe usar su propio tamaño (chunkSize), no el quantity global
-      const chunkQuantity = Math.min(chunkSize, endIdx - startIdx);
-      const chunkSignals = processChunk(symbol, chunkCandles, previousCandles, maxSignalsPer1000, chunk, regime, chunkQuantity);
-      allSignals.push(...chunkSignals);
+      // 🚨 STEP 3: Llamar a Redis con timestamp de primera vela - 15 minutos
+      if (chunkCandles.length > 0) {
+        const firstCandleTime = chunkCandles[0].openTime;
+        const fifteenMinutesAgo = firstCandleTime - (15 * 60 * 1000);
+        const fifteenMinutesAgoISO = new Date(fifteenMinutesAgo).toISOString();
+        
+        console.log(`[predictV662] Obteniendo datos desde: ${fifteenMinutesAgoISO}`);
+        
+        // Obtener datos anteriores de Redis
+        const previousData = await getData(symbol, previousCandles, fifteenMinutesAgoISO, 0, timeframe);
+        console.log(`[predictV662] Obtenidas ${previousData.length} velas anteriores`);
+        
+        // Mergear con unshift
+        const mergedCandles = [...previousData, ...chunkCandles];
+        console.log(`[predictV662] Mergeado: ${mergedCandles.length} velas totales`);
+        
+        // Verificar gaps en los datos mergeados
+        verifyCandleIntervals(mergedCandles, timeframe);
+        
+        // Procesar chunk con datos mergeados
+        const chunkQuantity = Math.min(chunkSize, endIdx - startIdx);
+        const chunkSignals = processChunk(symbol, mergedCandles, previousCandles, maxSignalsPer1000, chunk, regime, chunkQuantity);
+        allSignals.push(...chunkSignals);
+      }
     }
     
     return allSignals.sort((a, b) => new Date(a.dtISO) - new Date(b.dtISO));
@@ -98,6 +144,8 @@ function processChunk(symbol, candles, previousCandles, maxSignalsPer1000, chunk
 
   // Simple placeholder selection: look for momentum bursts with ATR-filtered space
   const atr = computeATR(candles, 14) || 0;
+  console.log('===============================================');
+  console.log(candles.length);
   if (atr <= 0) return [];
 
   // 🚨 FIX: Calcular el offset correcto para cada chunk

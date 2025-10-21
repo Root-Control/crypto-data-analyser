@@ -1,0 +1,15 @@
+{
+  "version": "v6.6.2",
+  "regime": "low",
+  "params": {
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "quantity": 1000,
+    "previousCandles": 500,
+    "fromISO": "2025-10-20T20:00:00.000Z"
+  },
+  "stats": {
+    "total": 0
+  },
+  "signals": []
+}
