@@ -516,9 +516,18 @@ function generatePdf({ signals, title = 'SEÑALES DE TRADING v6.6', regime = 'lo
   doc.addPage();
   drawPnLSummaryPage(doc, signals);
   
-  // Página adicional: Tabla detallada de señales
-  doc.addPage();
-  drawPnLTablePage(doc, signals);
+  // Página adicional: Tabla detallada de señales (dividida en páginas de 50)
+  const signalsPerPage = 50;
+  const totalPages = Math.ceil(signals.length / signalsPerPage);
+  
+  for (let page = 1; page <= totalPages; page++) {
+    doc.addPage();
+    const startIdx = (page - 1) * signalsPerPage;
+    const endIdx = Math.min(startIdx + signalsPerPage, signals.length);
+    const pageSignals = signals.slice(startIdx, endIdx);
+    const isLastPage = page === totalPages;
+    drawPnLTablePage(doc, pageSignals, page, totalPages, startIdx, isLastPage, signals);
+  }
 
   doc.end();
   return new Promise((resolve) => {
@@ -618,50 +627,55 @@ function drawPnLSummaryPage(doc, signals) {
   }
 }
 
-function drawPnLTablePage(doc, signals) {
+function drawPnLTablePage(doc, signals, pageNumber = 1, totalPages = 1, startIndex = 0, isLastPage = false, allSignals = []) {
   // Título de la página
   doc.fillColor('#1976D2').fontSize(20).text('TABLA DETALLADA DE SEÑALES', { align: 'center' });
   doc.fillColor('#666').fontSize(12).text('Cálculos usando $400 apalancado a 20X', { align: 'center' });
+  doc.fillColor('#666').fontSize(10).text(`Página ${pageNumber} de ${totalPages}`, { align: 'center' });
   doc.moveDown(0.5);
 
   // Definir posiciones de columnas
   const colPositions = {
     signal: 30,
-    type: 60,
-    entry: 110,
-    exit: 160,
-    reason: 210,
-    grossROI: 260,
-    grossUsd: 320,
-    netROI: 380,
-    netUsd: 440,
-    fees: 500
+    type: 55,
+    entry: 100,
+    exit: 145,
+    scwp: 190,
+    reason: 230,
+    vela: 270,
+    grossROI: 320,
+    grossUsd: 380,
+    netROI: 440,
+    netUsd: 500,
+    fees: 560
   };
 
   // Encabezados de tabla con fondo gris
   const headerY = doc.y;
-  doc.rect(40, headerY - 5, 500, 25).fill('#f5f5f5');
+  doc.rect(40, headerY - 5, 580, 35).fill('#f5f5f5');
   
   doc.fillColor('#333').fontSize(9).font('Helvetica-Bold');
-  doc.text('Señal', colPositions.signal, headerY);
+  doc.text('S', colPositions.signal, headerY);
   doc.text('Tipo', colPositions.type, headerY);
   doc.text('Entrada', colPositions.entry, headerY);
   doc.text('Salida', colPositions.exit, headerY);
+  doc.text('SCWP%', colPositions.scwp, headerY);
   doc.text('Razón', colPositions.reason, headerY);
+  doc.text('Vela', colPositions.vela, headerY);
   doc.text('Bruto ROI%', colPositions.grossROI, headerY);
   doc.text('Bruto $', colPositions.grossUsd, headerY);
   doc.text('Neto ROI%', colPositions.netROI, headerY);
   doc.text('Neto $', colPositions.netUsd, headerY);
   doc.text('Fees $', colPositions.fees, headerY);
   
-  doc.moveDown(0.4);
+  doc.moveDown(0.8);
   
   // Línea separadora
-  doc.strokeColor('#ccc').lineWidth(1).moveTo(40, doc.y).lineTo(540, doc.y).stroke();
-  doc.moveDown(0.2);
+  doc.strokeColor('#ccc').lineWidth(1).moveTo(40, doc.y).lineTo(620, doc.y).stroke();
+  doc.moveDown(0.5);
   
   // Datos de señales
-  doc.fillColor('#000').fontSize(8).font('Helvetica');
+  doc.fillColor('#000').fontSize(9).font('Helvetica');
   signals.forEach((signal, idx) => {
     if (signal.realPnL) {
       const pnl = signal.realPnL;
@@ -671,62 +685,96 @@ function drawPnLTablePage(doc, signals) {
       
       // Fondo alternado para filas
       if (idx % 2 === 0) {
-        doc.rect(30, rowY - 3, 520, 18).fill('#fafafa');
+        doc.rect(30, rowY - 3, 590, 35).fill('#fafafa');
       }
       
-      doc.fillColor('#000').text(`${idx + 1}`, colPositions.signal, rowY);
+      doc.fillColor('#000').text(`${startIndex + idx + 1}`, colPositions.signal, rowY);
       doc.fillColor('#000').text(signal.side, colPositions.type, rowY);
       doc.fillColor('#000').text(`$${signal.entry.toFixed(0)}`, colPositions.entry, rowY);
       doc.fillColor('#000').text(`$${pnl.exitPrice.toFixed(0)}`, colPositions.exit, rowY);
-      doc.fillColor('#000').text(pnl.exitReason, colPositions.reason, rowY);
-                  doc.fillColor(grossColor).text(`${pnl.grossROI.toFixed(2)}%`, colPositions.grossROI, rowY);
-                  doc.fillColor(grossColor).text(`$${pnl.grossUsd.toFixed(2)}`, colPositions.grossUsd, rowY);
-                  doc.fillColor(netColor).text(`${pnl.netPct.toFixed(2)}%`, colPositions.netROI, rowY);
-                  doc.fillColor(netColor).text(`$${pnl.netUsd.toFixed(2)}`, colPositions.netUsd, rowY);
-                  doc.fillColor('#666').text(`$${pnl.totalFees.toFixed(2)}`, colPositions.fees, rowY);
       
-      doc.moveDown(0.3);
+      // Calcular SCWP (Signal Candle Wick Percentage)
+      let scwp = '-';
+      if (signal.candle && signal.candle.high && signal.candle.low) {
+        const candle = signal.candle;
+        if (signal.side === 'LONG') {
+          // Para LONG: porcentaje de mecha superior desde el precio de entrada
+          const upperWick = candle.high - signal.entry;
+          const candleRange = candle.high - candle.low;
+          if (candleRange > 0) {
+            scwp = ((upperWick / candleRange) * 100).toFixed(1) + '%';
+          }
+        } else if (signal.side === 'SHORT') {
+          // Para SHORT: porcentaje de mecha inferior desde el precio de entrada
+          const lowerWick = signal.entry - candle.low;
+          const candleRange = candle.high - candle.low;
+          if (candleRange > 0) {
+            scwp = ((lowerWick / candleRange) * 100).toFixed(1) + '%';
+          }
+        }
+      }
+      doc.fillColor('#666').text(scwp, colPositions.scwp, rowY);
+      
+      doc.fillColor('#000').text(pnl.exitReason, colPositions.reason, rowY);
+      
+      // Información de vela de salida
+      let velaInfo = '-';
+      if (signal.realBehavior && signal.realBehavior.candleNumber) {
+        velaInfo = `V${signal.realBehavior.candleNumber}`;
+      } else if (pnl.exitReason === 'EXP') {
+        velaInfo = 'EXP';
+      }
+      doc.fillColor('#666').text(velaInfo, colPositions.vela, rowY);
+      
+      doc.fillColor(grossColor).text(`${pnl.grossROI.toFixed(2)}%`, colPositions.grossROI, rowY);
+      doc.fillColor(grossColor).text(`$${pnl.grossUsd.toFixed(2)}`, colPositions.grossUsd, rowY);
+      doc.fillColor(netColor).text(`${pnl.netPct.toFixed(2)}%`, colPositions.netROI, rowY);
+      doc.fillColor(netColor).text(`$${pnl.netUsd.toFixed(2)}`, colPositions.netUsd, rowY);
+      doc.fillColor('#666').text(`$${pnl.totalFees.toFixed(2)}`, colPositions.fees, rowY);
+      
+      doc.moveDown(1.0);
       
       // Línea separadora sutil
       if (idx < signals.length - 1) {
-        doc.strokeColor('#e0e0e0').lineWidth(0.5).moveTo(30, doc.y).lineTo(550, doc.y).stroke();
-        doc.moveDown(0.1);
+        doc.strokeColor('#e0e0e0').lineWidth(0.5).moveTo(30, doc.y).lineTo(620, doc.y).stroke();
+        doc.moveDown(0.2);
       }
     }
   });
 
-  // Fila de totales
-  doc.moveDown(0.4);
+  // Fila de totales (solo en la última página)
+  if (isLastPage) {
+    doc.moveDown(0.6);
+    
+    // Línea separadora gruesa
+    doc.strokeColor('#1976D2').lineWidth(2).moveTo(30, doc.y).lineTo(620, doc.y).stroke();
+    doc.moveDown(0.3);
+    
+    // Calcular totales (usando todas las señales, no solo las de esta página)
+    let totalGrossUsd = 0;
+    let totalNetUsd = 0;
+    let totalFees = 0;
+    let wins = 0;
+    let losses = 0;
+    
+    allSignals.forEach(signal => {
+      if (signal.realPnL) {
+        const pnl = signal.realPnL;
+        totalGrossUsd += pnl.grossUsd;
+        totalNetUsd += pnl.netUsd;
+        totalFees += pnl.totalFees;
+        if (pnl.netPct > 0) wins++;
+        else if (pnl.netPct < 0) losses++;
+      }
+    });
+    
+    const totalROI = (totalNetUsd / (400 * allSignals.length)) * 100;
+    const winRate = ((wins / allSignals.length) * 100).toFixed(1);
   
-  // Línea separadora gruesa
-  doc.strokeColor('#1976D2').lineWidth(2).moveTo(30, doc.y).lineTo(550, doc.y).stroke();
-  doc.moveDown(0.3);
-  
-  // Calcular totales
-  let totalGrossUsd = 0;
-  let totalNetUsd = 0;
-  let totalFees = 0;
-  let wins = 0;
-  let losses = 0;
-  
-  signals.forEach(signal => {
-    if (signal.realPnL) {
-      const pnl = signal.realPnL;
-      totalGrossUsd += pnl.grossUsd;
-      totalNetUsd += pnl.netUsd;
-      totalFees += pnl.totalFees;
-      if (pnl.netPct > 0) wins++;
-      else if (pnl.netPct < 0) losses++;
-    }
-  });
-  
-  const totalROI = (totalNetUsd / (400 * signals.length)) * 100;
-  const winRate = ((wins / signals.length) * 100).toFixed(1);
-  
-  // Fondo para totales con borde
-  const totalY = doc.y;
-  doc.rect(30, totalY - 5, 520, 25).fill('#f8f9fa');
-  doc.rect(30, totalY - 5, 520, 25).stroke('#1976D2').lineWidth(1);
+    // Fondo para totales con borde
+    const totalY = doc.y;
+    doc.rect(30, totalY - 5, 590, 25).fill('#f8f9fa');
+    doc.rect(30, totalY - 5, 590, 25).stroke('#1976D2').lineWidth(1);
   
   // Texto de totales con mejor formato
   doc.fillColor('#1976D2').fontSize(10).font('Helvetica-Bold');
@@ -734,6 +782,7 @@ function drawPnLTablePage(doc, signals) {
   doc.text(`${wins}W/${losses}L`, colPositions.type, totalY + 2);
   doc.text(`(${winRate}%)`, colPositions.entry, totalY + 2);
   doc.text('', colPositions.exit, totalY + 2); // Salida vacía
+  doc.text('', colPositions.scwp, totalY + 2); // SCWP vacío
   doc.text('', colPositions.reason, totalY + 2); // Razón vacía
   
   // Colores para ROI y USD
@@ -746,15 +795,15 @@ function drawPnLTablePage(doc, signals) {
   doc.fillColor(usdColor).text(`$${totalNetUsd.toFixed(2)}`, colPositions.netUsd, totalY + 2);
   doc.fillColor('#666').text(`$${totalFees.toFixed(2)}`, colPositions.fees, totalY + 2);
   
-  // Resumen adicional más abajo
-  doc.moveDown(0.6);
-  doc.fillColor('#666').fontSize(8).font('Helvetica');
-  doc.text(`Capital total: $${(400 * signals.length).toFixed(0)}`, { align: 'center' });
-  doc.moveDown(0.1);
-  doc.text(`ROI promedio: ${(totalROI / signals.length).toFixed(1)}%`, { align: 'center' });
-  doc.moveDown(0.1);
-  doc.text(`Fees totales: $${totalFees.toFixed(0)}`, { align: 'center' });
-
+    // Resumen adicional más abajo
+    doc.moveDown(0.6);
+    doc.fillColor('#666').fontSize(8).font('Helvetica');
+    doc.text(`Capital total: $${(400 * allSignals.length).toFixed(0)}`, { align: 'center' });
+    doc.moveDown(0.1);
+    doc.text(`ROI promedio: ${(totalROI / allSignals.length).toFixed(1)}%`, { align: 'center' });
+    doc.moveDown(0.1);
+    doc.text(`Fees totales: $${totalFees.toFixed(0)}`, { align: 'center' });
+  }
 }
 
 module.exports = { generatePdf };

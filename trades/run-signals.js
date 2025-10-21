@@ -5,6 +5,7 @@ const path = require('path');
 const { predictV662 } = require('./predict-v6.6.2');
 const { getData } = require('./get-data');
 const { generatePdf } = require('./generate-pdf');
+const { getRegimeFromCandles } = require('./detect-regime');
 const { 
   calculateLongRiskReward, 
   calculateShortRiskReward, 
@@ -142,7 +143,7 @@ function polishAndValidateStats(stats, emitted) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { symbol: 'ETHUSDT', timeframe: '15m', quantity: 30000, previousCandles: 500, regime: 'low', fromISO: '2025-10-20T17:00:00.000Z' };
+  const out = { symbol: 'ETHUSDT', timeframe: '15m', quantity: 30000, previousCandles: 500, regime: 'auto', fromISO: '2025-10-20T17:00:00.000Z' };
   for (let i = 0; i < args.length; i += 1) {
     const a = args[i];
     const v = args[i + 1];
@@ -460,8 +461,11 @@ async function main() {
   const { symbol, timeframe, quantity, previousCandles, fromISO, regime } = opts;
   const candles = await getData(symbol, quantity, fromISO, previousCandles, timeframe);
   
+  // Detectar régimen automáticamente si no se especifica o es 'auto'
+  const detectedRegime = regime === 'auto' ? getRegimeFromCandles(candles) : regime;
+  
   // Generate raw signals from prediction engine
-  const rawSignals = (await predictV662({ symbol, quantity, fromISO, previousCandles, timeframe, regime }))
+  const rawSignals = (await predictV662({ symbol, quantity, fromISO, previousCandles, timeframe, regime: detectedRegime }))
     .map(s => attachCandle(candles, s))
     .map(s => computeFeesAndRisk(s))
     .map(s => computeNextMove(candles, s))
@@ -624,7 +628,7 @@ async function main() {
 
   const snapshot = {
     version: 'v6.6.2',
-    regime,
+    regime: detectedRegime,
     params: { symbol, timeframe, quantity, previousCandles, fromISO },
     stats: { total: signalsWithPacing.length },
     signals: signalsWithPacing,
@@ -633,7 +637,7 @@ async function main() {
   const stats = {
     version: 'v6.6.2',
     timestamp: new Date().toISOString(),
-    regime,
+    regime: detectedRegime,
 
     emitted,
     long_short_balance: { LONG: longCount, SHORT: shortCount },
@@ -806,7 +810,7 @@ async function main() {
     from: candles[0].openTime, 
     to: candles[candles.length - 1].openTime 
   } : undefined;
-  await generatePdf({ signals: signalsWithPacing, regime, symbol, dateRange, previousCandles, pacingStats, candles, outPath: pdfOut });
+  await generatePdf({ signals: signalsWithPacing, regime: detectedRegime, symbol, dateRange, previousCandles, pacingStats, candles, outPath: pdfOut });
 
   // EMIT_SUMMARY with real values
   console.log(`EMIT_SUMMARY v6.6.2 | emitted=${emitted} | picked=${picked} | postCluster=${postClusterCount} | clusterBypass=${clusterBypass} | dirAvgEmit=${dirScoreAvgEmitted?.toFixed(3)} | rrAvgEmit=${rrAvg?.toFixed(3)} | priceRadius=${priceRadiusFinal?.toFixed(3)} | pacing: minSpacing=${PACING_CONFIG.minSpacingBars}b, cooldownSide=${PACING_CONFIG.cooldownSideBars}b, max${PACING_CONFIG.maxSignals4h}/4h | removed: spacing=${pacingStats.removedByMinSpacing}, cooldown=${pacingStats.removedByCooldownSide}, rate4h=${pacingStats.removedByRateLimit4h}, reverseAfterSL=${pacingStats.blockedReverseAfterSL} | pdf=${pdfOut} | snapshot=${jsonOut}`);

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Leer el archivo de señales más reciente
-const signalsFile = 'trades/reports/signals-1761004379869.json';
+const signalsFile = 'trades/reports/signals-1761019495212.json';
 const signals = JSON.parse(fs.readFileSync(signalsFile, 'utf8'));
 
 console.log('=== ANÁLISIS DEL PDF - MULTIPLICADOR 1.2 ===\n');
