@@ -16,7 +16,7 @@ describe('Pipeline Fixes TDD Tests', () => {
       };
       
       // Apply RR_MIN enforcement
-      const RR_MIN = 1.30;
+      const RR_MIN = parseFloat(process.env.TP_MULTIPLIER) || 1.30;
       const slDist = Math.abs(signal.entry - signal.sl);
       const requiredTpDist = slDist * RR_MIN;
       const newTp1 = signal.side === 'LONG' ? signal.entry + requiredTpDist : signal.entry - requiredTpDist;

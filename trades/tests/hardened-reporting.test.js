@@ -16,21 +16,22 @@ function testRRMinimumEnforcement() {
   console.log('Testing RR minimum enforcement...');
   
   // Test case 1: RR already meets minimum
-  const result1 = enforceRRMinimum('LONG', 100, 95, 110, 1.30);
+  const rrMin = parseFloat(process.env.TP_MULTIPLIER) || 1.30;
+  const result1 = enforceRRMinimum('LONG', 100, 95, 110, rrMin);
   assert.strictEqual(result1.tp1, 110);
   assert.strictEqual(result1.rr_real, 2.0);
   assert.strictEqual(result1.tp1Recalc, false);
   
   // Test case 2: RR below minimum, needs recalculation
-  const result2 = enforceRRMinimum('LONG', 100, 95, 98, 1.30);
-  assert.strictEqual(result2.tp1, 106.5); // 5 * 1.30 = 6.5, so 100 + 6.5 = 106.5
-  assert.strictEqual(result2.rr_real, 1.30);
+  const result2 = enforceRRMinimum('LONG', 100, 95, 98, rrMin);
+  assert.strictEqual(result2.tp1, 95 + (5 * rrMin)); // 5 * rrMin = distance, so 95 + distance
+  assert.strictEqual(result2.rr_real, rrMin);
   assert.strictEqual(result2.tp1Recalc, true);
   
   // Test case 3: SHORT side
-  const result3 = enforceRRMinimum('SHORT', 100, 105, 95, 1.30);
-  assert.strictEqual(result3.tp1, 93.5); // 5 * 1.30 = 6.5, so 100 - 6.5 = 93.5
-  assert.strictEqual(result3.rr_real, 1.30);
+  const result3 = enforceRRMinimum('SHORT', 100, 105, 95, rrMin);
+  assert.strictEqual(result3.tp1, 105 - (5 * rrMin)); // 5 * rrMin = distance, so 105 - distance
+  assert.strictEqual(result3.rr_real, rrMin);
   assert.strictEqual(result3.tp1Recalc, true);
   
   console.log('✓ RR minimum enforcement tests passed');

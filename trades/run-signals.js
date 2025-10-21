@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { predictV662 } = require('./predict-v6.6.2');
@@ -429,8 +430,9 @@ function calculateRealPnL(signal) {
   };
 }
 
+const RR_MIN = parseFloat(process.env.TP_MULTIPLIER) || 1.30;
+
 function enforceRRMinimum(signal) {
-  const RR_MIN = 1.30;
   const slDist = Math.abs(signal.entry - signal.sl);
   const tpDist = Math.abs(signal.tp1 - signal.entry);
   const currentRR = tpDist / slDist;
@@ -739,7 +741,7 @@ async function main() {
     },
 
     rr_roi: {
-      rrMinApplied: 1.30,
+      rrMinApplied: RR_MIN,
       rrAvg_emitted: rrAvg,
       targetsSource: "atr",
       tpCapApplied: false

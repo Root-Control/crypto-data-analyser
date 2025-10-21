@@ -162,8 +162,8 @@ async function main() {
     let k_tp = null, k_sl = null, rr_target = null;
     if (!Number.isFinite(sl) || !Number.isFinite(tp1)) {
       if (!Number.isFinite(atr)) throw new Error('ATR required to synthesize TP/SL');
-      // regime low: rr target 1.3..1.6
-      const rrT = 1.45;
+      // regime low: rr target from TP_MULTIPLIER
+      const rrT = parseFloat(process.env.TP_MULTIPLIER) || 1.45;
       rr_target = rrT;
       // choose k_sl modest, k_tp = rrT * k_sl approximately
       k_sl = 0.8; k_tp = rrT * k_sl;

@@ -15,7 +15,7 @@ const {
 const NOTIONAL_USD = 4000; // capital 400 * 10x
 const CAPITAL_USD = 400;
 const H = 5; // horizon in bars
-const RR_MIN = 1.30; // configurable minimum RR
+const RR_MIN = parseFloat(process.env.TP_MULTIPLIER) || 1.30; // configurable minimum RR
 
 function parseArgs() {
   const args = process.argv.slice(2);

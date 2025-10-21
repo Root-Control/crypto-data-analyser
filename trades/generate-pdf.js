@@ -132,7 +132,7 @@ function drawGeneralInfoPage(doc, signals, regime, symbol, dateRange, previousCa
   doc.text('PARÁMETROS PRINCIPALES:');
   doc.text(`• Capital: $400 USD`);
   doc.text(`• Leverage: 10x`);
-  doc.text(`• RR mínimo: 1.30`);
+  doc.text(`• RR mínimo: ${parseFloat(process.env.TP_MULTIPLIER) || 1.30}`);
   doc.text(`• Velas de análisis: ${previousCandles}`);
   doc.moveDown(0.1);
   

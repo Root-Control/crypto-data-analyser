@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { getData } = require('./get-data');
 
 function pct(a, b) {
@@ -100,12 +101,17 @@ function processChunk(symbol, candles, previousCandles, maxSignalsPer1000, chunk
 
     const side = bullish ? 'LONG' : 'SHORT';
     const entry = c.close;
-    const sl = bullish ? c.low : c.high;
-    const rrTarget = 1.0; // minimal RR per spec low regime
-    const risk = Math.abs(entry - sl);
-    if (risk <= 0) continue;
-    const tp1 = bullish ? entry + rrTarget * risk : entry - rrTarget * risk;
-    const tp2 = bullish ? entry + 2 * risk : entry - 2 * risk;
+    const baseSl = bullish ? c.low : c.high;
+    const rrTarget = parseFloat(process.env.TP_MULTIPLIER) || 1.0; // Use TP_MULTIPLIER from env
+    const baseRisk = Math.abs(entry - baseSl);
+    if (baseRisk <= 0) continue;
+    
+    // Apply multiplier to both SL and TP
+    const multiplier = parseFloat(process.env.TP_MULTIPLIER) || 1.0;
+    const adjustedRisk = baseRisk * multiplier;
+    const sl = bullish ? entry - adjustedRisk : entry + adjustedRisk;
+    const tp1 = bullish ? entry + rrTarget * adjustedRisk : entry - rrTarget * adjustedRisk;
+    const tp2 = bullish ? entry + 2 * rrTarget * adjustedRisk : entry - 2 * rrTarget * adjustedRisk;
     const rr = Math.abs((tp1 - entry) / (entry - sl));
 
     const eventScore = Math.min(1, body / (atr || 1));
